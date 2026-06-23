@@ -1,0 +1,73 @@
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+env/
+*.egg-info/
+.python-version
+
+# ── Secrets / local env ───────────────────────────────────────────────────────
+.env
+.env.*
+
+# ── Flow cytometry input data ─────────────────────────────────────────────────
+# The full dataset is many GB and not source.
+test fsc/
+*.fcs
+*.wsp
+# Spreadsheets (staining panels, exports) often carry experiment metadata.
+*.xlsx
+*.xls
+# Real dataset trees (keep their structure out of the repo). Add your own
+# experiment folders here, or to .git/info/exclude to keep them out of the
+# tracked, publishable .gitignore.
+data/
+raw/
+
+# ── Private / experiment-specific (never published) ───────────────────────────
+# Real data paths, configs, and personal analysis harnesses live here so the
+# tracked tree stays generic and publishable. See scripts/run_analyses.py +
+# scripts/analysis_config.example.json for the committed, parameterised form.
+private/
+
+# ── Pipeline outputs (everything derived from the FCS data) ───────────────────
+outputs/
+results/
+**/*_stats.csv
+**/*_scatter.png
+**/*_heatmap.png
+**/*_fsc_ssc.png
+**/*_umap.png
+**/condition_comparison.csv
+**/condition_comparison.png
+
+# ── Phenograph / Louvain temporary scratch files ──────────────────────────────
+.phenograph_cache/
+*.bin
+*.tree
+*_graph.weights
+
+# ── OS / editor junk ──────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*~
+
+# ── IDE ───────────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+
+# ── Gate-editor runtime writes (user data, not source) ────────────────────────
+# The editor saves user templates + sessions next to gui.py; the shipped
+# example templates live in the top-level templates/ (tracked).
+src/openflo/templates/
+# Saved sessions embed absolute FCS paths (machine-specific).
+*.flowsession
+
+# Generated synthetic example dataset (regenerate with scripts/make_synthetic_dataset.py)
+synthetic_data/
+spectral_out/

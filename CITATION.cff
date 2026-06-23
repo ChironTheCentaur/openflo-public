@@ -1,0 +1,38 @@
+cff-version: 1.2.0
+title: "OpenFlo: a flow cytometry analysis pipeline with FlowJo round-trip"
+message: "If you use this software, please cite it as below."
+type: software
+authors:
+  - given-names: "Sky"
+    orcid: "https://orcid.org/0009-0004-4727-4639"
+license: MIT
+repository-code: "https://github.com/ChironTheCentaur/openflo"
+version: "1.1.0"
+date-released: "2026-06-23"
+keywords:
+  - flow-cytometry
+  - fcs
+  - phenograph
+  - umap
+  - flowjo
+  - gating
+references:
+  - type: article
+    authors:
+      - family-names: Levine
+        given-names: Jacob H.
+    title: "Data-Driven Phenotypic Dissection of AML Reveals Progenitor-like Cells that Correlate with Prognosis (PhenoGraph)"
+    journal: Cell
+    year: 2015
+    doi: 10.1016/j.cell.2015.05.047
+  - type: article
+    authors:
+      - family-names: McInnes
+        given-names: Leland
+      - family-names: Healy
+        given-names: John
+      - family-names: Melville
+        given-names: James
+    title: "UMAP: Uniform Manifold Approximation and Projection for Dimension Reduction"
+    year: 2018
+    url: "https://arxiv.org/abs/1802.03426"
