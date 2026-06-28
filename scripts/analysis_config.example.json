@@ -1,0 +1,47 @@
+{
+  "_comment": "Copy to private/analysis_config.json and edit. Paths are relative to data_root (itself relative to the repo root unless absolute). Run: python scripts/run_analyses.py [config] [--dry-run].",
+  "data_root": ".",
+  "panel": "auto",
+  "out_dir": "outputs/analyses",
+  "defaults": {
+    "max_events": 12000,
+    "k": 30,
+    "doublet_tol": 0.2,
+    "seed": 42,
+    "njobs": 1,
+    "pairs": [["CD34", "CD11b"], ["CD11b", "CD45"], ["CD34", "CD45"]]
+  },
+  "analyses": [
+    {
+      "name": "groupA_vs_groupB",
+      "group_by": "split_by_prefix",
+      "trial_dir": "path/to/trial_folder",
+      "prefix": "treated",
+      "require_regex": "s[0-9]",
+      "exclude_regex": "rerun",
+      "with_name": "Group A",
+      "without_name": "Group B"
+    },
+    {
+      "name": "time_course_by_day",
+      "group_by": "by_folder",
+      "root": "path/to/series_root",
+      "folders": [
+        ["Day 1", "path/to/day1_folder"],
+        ["Day 2", "path/to/day2_folder"]
+      ]
+    },
+    {
+      "name": "by_treatment_pooled",
+      "group_by": "split_by_token",
+      "root": "path/to/series_root",
+      "folders": [
+        ["Day 1", "path/to/day1_folder"],
+        ["Day 2", "path/to/day2_folder"]
+      ],
+      "treated_name": "Treated",
+      "control_name": "Control",
+      "control_regex": "(?<![a-z0-9])ctrl(?![a-z0-9])|untreated"
+    }
+  ]
+}
