@@ -1,0 +1,139 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "openflo"
+version = "1.7.0"
+description = "Flow cytometry analysis pipeline + Tk GUI with FlowJo .wsp round-trip"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { file = "LICENSE.txt" }
+authors = [{ name = "Skyler Niedzielski" }]
+keywords = ["flow-cytometry", "fcs", "phenograph", "umap", "flowjo", "gating"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+]
+dependencies = [
+    "FlowIO==1.4.0",
+    "FlowUtils==1.2.2",
+    "numpy==2.4.6",
+    "pandas==3.0.3",
+    "scipy==1.17.1",
+    "scikit-learn==1.8.0",
+    "openpyxl==3.1.5",
+    "PhenoGraph==1.5.7",
+    "umap-learn==0.5.12",
+    "igraph==1.0.0",
+    "leidenalg==0.11.0",
+    "matplotlib==3.10.9",
+    "seaborn==0.13.2",
+    "psutil==7.2.2",
+    "tqdm==4.67.3",
+]
+
+[project.optional-dependencies]
+gui = ["tkinterdnd2==0.4.3"]
+# Extra dimensionality-reduction backends (UMAP + t-SNE ship in core deps;
+# t-SNE via scikit-learn).
+embed = ["trimap>=1.1.4", "pacmap>=0.7.3", "phate>=1.0.11"]
+# Single-cell ecosystem interop (AnnData / .h5ad export for scanpy).
+interop = ["anndata>=0.10"]
+# Optional NVIDIA-GPU acceleration of the load math (compensation + arcsinh),
+# opt-in via Preferences. Native-Windows-capable (unlike RAPIDS/cuML). The
+# nvidia-* wheels supply the CUDA libs CuPy 14 locates at runtime (cuBLAS for
+# the matmul, nvrtc/nvjitlink for elementwise kernels); ~650 MB total.
+gpu = [
+    "cupy-cuda12x>=13",
+    "nvidia-cublas-cu12",
+    "nvidia-cuda-runtime-cu12",
+    "nvidia-cuda-nvrtc-cu12",
+    "nvidia-nvjitlink-cu12",
+]
+dev = [
+    "pytest>=8.0",
+    "pytest-xdist>=3.5",  # parallel test runs: `pytest -n auto` (~2x on the suite)
+    "pyright==1.1.410",   # pinned: keep local type-checking identical to CI
+    "ruff==0.15.19",      # pinned to match CI (an unpinned bump broke Lint once)
+    "vulture>=2.16",
+]
+
+[project.urls]
+# Point at the PUBLIC mirror — this metadata ships on PyPI, so it must not
+# reference the private development repo.
+Homepage  = "https://github.com/ChironTheCentaur/openflo-public"
+Source    = "https://github.com/ChironTheCentaur/openflo-public"
+Issues    = "https://github.com/ChironTheCentaur/openflo-public/issues"
+Changelog = "https://github.com/ChironTheCentaur/openflo-public/blob/main/CHANGELOG.md"
+
+[project.scripts]
+openflo-run      = "openflo.cli:main"
+openflo-compare  = "openflo.compare:main"
+openflo-voltage  = "openflo.voltage:main"
+openflo-synth    = "openflo.synthetic:main"
+openflo-selftest = "openflo.selftest:main"
+openflo-doctor   = "openflo.diagnostics:main"
+
+[project.gui-scripts]
+openflo-gui = "openflo.gui:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+openflo = ["_golden.json", "template_library/*.json", "template_library/*.md"]
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+testpaths = ["tests"]
+addopts = "-ra -q"
+filterwarnings = [
+    "ignore::FutureWarning",
+    "ignore::DeprecationWarning",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = [".venv", "outputs", "results", "test fsc", ".phenograph_cache"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B"]
+ignore = [
+    "E501",  # line length handled by formatter; many long scientific lines are clearer left as-is
+    "E701",  # compact `if x: return` guard lines used throughout
+    "E702",  # `import a, b, c` style on a single line — legacy code uses it
+]
+
+[tool.vulture]
+# Run with: vulture src/ tests/
+# Most flagged items below 80% confidence are false-positives:
+#   - __getattr__ — PEP-562 lazy import hooks (dynamic dispatch)
+#   - print_matrices / add_fmos_from_dir / exclude_pattern /
+#     keep_pattern / run_all / plot_all / concatenate_group /
+#     export_all — public API on WspReader / FlowExperiment used by
+#     library consumers, not by our internal code paths
+#   - _JOBOBJECT_EXTENDED_LIMIT_INFORMATION / LimitFlags — ctypes
+#     Structure field declarations accessed by name reflection
+#   - umap_coords — populated optionally; consumers check then read
+# Stick to min-confidence 80 to keep these out of CI noise.
+min_confidence = 80
+paths = ["src", "tests"]
+exclude = ["scripts/smoke_test.py"]
+ignore_decorators = ["@pytest.fixture", "@pytest.mark.parametrize", "@staticmethod", "@classmethod"]
+
+[tool.pyright]
+# Type-check the shipped library only; tests use loose stubs/mocks by design.
+include       = ["src"]
+exclude       = [".venv", "outputs", "results", "test fsc", ".phenograph_cache", "__pycache__"]
+pythonVersion = "3.11"
+typeCheckingMode = "basic"
+reportMissingImports        = "warning"
+reportMissingTypeStubs      = "none"
