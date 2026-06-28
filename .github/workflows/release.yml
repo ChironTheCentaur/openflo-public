@@ -1,0 +1,60 @@
+name: Release to PyPI
+
+# Builds the sdist + wheel on every version tag (always — validates the
+# package), and publishes to PyPI only once publishing is turned on.
+#
+# Publishing uses PyPI Trusted Publishing (OIDC) — no token stored. Until it's
+# configured the publish step would fail with `invalid-publisher`, so it is
+# gated behind a repository variable: the build still runs and validates, but
+# publish is skipped (the run stays green). To enable:
+#   1. Create the `openflo` project on PyPI and add a Trusted Publisher for
+#      this repo + the `release.yml` workflow (Publishing settings).
+#   2. Set repository variable PYPI_PUBLISH = true (Settings → Secrets and
+#      variables → Actions → Variables).
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build distributions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build sdist + wheel
+        run: |
+          python -m pip install --upgrade pip build
+          python -m build
+      - name: Check metadata
+        run: |
+          python -m pip install twine
+          twine check dist/*
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    name: Publish to PyPI
+    needs: build
+    # Opt-in: skipped (not failed) until PyPI Trusted Publishing is set up and
+    # the PYPI_PUBLISH repo variable is "true". Keeps tag pushes green.
+    if: ${{ vars.PYPI_PUBLISH == 'true' }}
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write            # required for Trusted Publishing
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - name: Publish
+        uses: pypa/gh-action-pypi-publish@release/v1
