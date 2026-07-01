@@ -1,0 +1,9 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Question / discussion
+    url: https://github.com/ChironTheCentaur/openflo/discussions
+    about: |
+      For usage questions, scientific-correctness discussion, or
+      "is this the right tool for X" — please use Discussions. We'd
+      rather keep the issue tracker focused on bugs + concrete
+      feature requests.
