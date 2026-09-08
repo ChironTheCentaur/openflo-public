@@ -1,0 +1,42 @@
+# GPU image — exercises OpenFlo's CuPy GPU paths (compensation, logicle/hyperlog,
+# event-density, KDE) on a real NVIDIA GPU under Linux/WSL2, and runs the
+# GPU-parity tests in tests/test_gpu_accel.py (which self-enable the GPU and
+# assert the results match the CPU / flowutils / scipy reference).
+#
+# Self-contained (same stack as docker/Dockerfile + CuPy), so it builds without
+# the dependency conflicts a RAPIDS base would introduce (RAPIDS pins
+# numpy/pandas versions incompatible with our pinned stack). The CUDA *runtime*
+# comes from the cupy + nvidia-* wheels; the *driver* is injected by
+# --gpus all (needs the nvidia-container-toolkit on the host).
+#
+#   docker build -f docker/Dockerfile.gpu -t openflo-gpu .
+#   docker run --rm --gpus all openflo-gpu
+#
+# NOTE: the RAPIDS-only GPU paths (cuML UMAP, cuGraph clustering in
+# pipeline._probe_gpu) are NOT covered here — they need a rapidsai-based image
+# with its own numpy/pandas reconciliation, left as a separate exercise.
+FROM python:3.11-slim
+
+ENV MPLBACKEND=Agg PYTHONUTF8=1 PIP_DISABLE_PIP_VERSION_CHECK=1
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        git xvfb xauth tk build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY requirements.txt ./
+# Runtime stack, then CuPy + the CUDA libs gpu_accel needs (cuBLAS for the
+# compensation matmul; nvrtc/nvjitlink for the elementwise + cupyx.ndimage
+# kernels). No cusolver/cufft — none of OpenFlo's CuPy paths use them.
+RUN python -m pip install --upgrade pip \
+    && pip install -r requirements.txt \
+    && pip install pytest pytest-xdist \
+    && pip install cupy-cuda12x \
+        nvidia-cublas-cu12 nvidia-cuda-runtime-cu12 \
+        nvidia-cuda-nvrtc-cu12 nvidia-nvjitlink-cu12
+COPY . .
+RUN pip install -e . --no-deps
+
+# The GPU-parity tests call gpu_accel.set_enabled(True) themselves, so they run
+# here and verify CuPy == CPU; the rest run on CPU + golden confirms parity.
+CMD ["bash", "-lc", "xvfb-run -a pytest -n auto -q && python -m openflo.diagnostics --quick"]

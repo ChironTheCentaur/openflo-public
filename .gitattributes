@@ -1,0 +1,6 @@
+# Internal release tooling — never ship to the public mirror.
+# `git archive` (used by scripts/publish_public.py to build the public snapshot)
+# honours export-ignore. The publisher's own scrub-pattern list contains the
+# private research tokens it guards against, so exporting it would BOTH self-trip
+# the fail-closed scrub gate AND leak that context. Keep it private-only.
+scripts/publish_public.py export-ignore
