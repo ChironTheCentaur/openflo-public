@@ -1,0 +1,67 @@
+{
+  "name": "Standard cleanup",
+  "description": "Panel-agnostic auto-clean recipe: debris (beads -> valley), dead cells (viability dye), doublets, margin saturation, flow-rate and signal drift. Recomputes per sample, so it applies across any panel.",
+  "version": 2,
+  "gates": [
+    {
+      "id": "g1",
+      "parent_id": null,
+      "kind": "autoclean",
+      "name": "Standard cleanup",
+      "color": "#808080",
+      "open": false,
+      "methods": [
+        {
+          "key": "debris",
+          "label": "Debris (size: beads \u2192 valley)",
+          "enabled": true,
+          "params": {
+            "mode": "bead",
+            "bead_um": 8.0,
+            "min_um": 4.0
+          }
+        },
+        {
+          "key": "viability",
+          "label": "Dead cells (viability dye)",
+          "enabled": true,
+          "params": {}
+        },
+        {
+          "key": "doublets",
+          "label": "Doublets (FSC-A/FSC-H)",
+          "enabled": true,
+          "params": {
+            "tol": 0.25
+          }
+        },
+        {
+          "key": "margin",
+          "label": "Margin (saturation)",
+          "enabled": true,
+          "params": {
+            "margin_frac": 0.01
+          }
+        },
+        {
+          "key": "flow_rate",
+          "label": "Flow rate (bubbles/clogs)",
+          "enabled": true,
+          "params": {
+            "n_bins": 200,
+            "flow_rate_threshold": 5.0
+          }
+        },
+        {
+          "key": "drift",
+          "label": "Signal drift",
+          "enabled": true,
+          "params": {
+            "n_bins": 200,
+            "threshold": 5
+          }
+        }
+      ]
+    }
+  ]
+}
