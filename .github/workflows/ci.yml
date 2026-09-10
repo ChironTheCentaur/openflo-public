@@ -1,0 +1,295 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+
+jobs:
+  test:
+    name: ${{ matrix.os }} / py${{ matrix.python }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ["3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+
+      - name: Install Xvfb (Linux — virtual display for the Tk GUI tests)
+        if: runner.os == 'Linux'
+        run: |
+          # The check that matters is that xvfb installs. `apt-get update` also
+          # refreshes third-party repos the runner image ships (Google Chrome,
+          # Microsoft); those intermittently serve an index with a hash-sum
+          # mismatch, which fails the WHOLE update with exit 100 and reds a run
+          # for a reason unrelated to this project. So the refresh is
+          # best-effort with one retry — the install below still fails loudly
+          # if the package genuinely cannot be fetched, and OPENFLO_REQUIRE_GUI
+          # makes the GUI tests fail rather than skip if Xvfb is missing.
+          sudo apt-get update || sudo apt-get update || true
+          sudo apt-get install -y xvfb
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          # Use requirements.txt for the runtime surface so CI tracks
+          # exactly what users get, then add dev tools on top.
+          pip install -r requirements.txt
+          # Pin ruff + pyright so CI and local (the dev extra) flag the same
+          # things — an unpinned ruff bump silently broke Lint once.
+          pip install "pyright[nodejs]==1.1.410" pytest pytest-xdist "ruff==0.15.19"
+          # Install the package itself (deps already pinned above) so the
+          # test suite can `import openflo`.
+          pip install -e . --no-deps
+
+      - name: Lint
+        run: ruff check .
+
+      - name: Type check
+        run: pyright
+
+      # The GUI/continuity tests are Tk-guarded: they need a display or they
+      # skip. Run them under a virtual framebuffer on Linux so they actually
+      # execute in CI; Windows runners already have a desktop session.
+      - name: Test (Linux, under Xvfb)
+        if: runner.os == 'Linux'
+        env:
+          MPLBACKEND: Agg
+          # Xvfb is running, so Tk MUST work here. Every GUI test guards
+          # itself with "skip if Tk is unavailable", which is fail-open: if Tk
+          # stopped initialising, they would all skip and this leg would go
+          # green having tested no GUI at all. Observed for real on
+          # windows/py3.11 ("Can't find a usable init.tcl"), where a test
+          # vanished from the run and nothing said so. This makes that an
+          # error instead.
+          OPENFLO_REQUIRE_GUI: '1'
+        run: xvfb-run -a pytest -n auto -q
+
+      - name: Test (Windows)
+        if: runner.os == 'Windows'
+        env:
+          MPLBACKEND: Agg
+          OPENFLO_REQUIRE_GUI: '1'      # see the Linux step for why
+        run: pytest -n auto -q
+
+      # The full-pipeline subprocess runs in tests/test_cli_e2e.py are opt-in
+      # (OPENFLO_RUN_SLOW_TESTS=1), so the flagship headless path — openflo-run
+      # over a folder of FCS, the thing the CLI exists for — had NO automated
+      # integration coverage on any leg.
+      #
+      # Run them SERIALLY in their own step, not by setting the flag on the
+      # step above: their docstring makes clear they were made opt-in because
+      # they "balloon unpredictably under a loaded parent process", and the
+      # main run uses `-n auto`, which is exactly that load. Serial and alone,
+      # the flakiness reason does not apply. One leg only — ~70 s once rather
+      # than four times, and a pipeline break will not be specific to an OS or
+      # a minor Python version.
+      # Also carries the clustering-determinism test: it clusters the same
+      # data twice (~35s), and is the only check that would catch the default
+      # reverting to PhenoGraph's unseeded Louvain binaries, which would make
+      # every run give different labels without failing anything else.
+      - name: Full-pipeline integration (Linux / py3.12 only, serial)
+        if: runner.os == 'Linux' && matrix.python == '3.12'
+        env:
+          MPLBACKEND: Agg
+          OPENFLO_RUN_SLOW_TESTS: '1'
+        run: xvfb-run -a pytest tests/test_cli_e2e.py tests/test_clustering_reproducible.py -q
+
+  # ── Installability ────────────────────────────────────────────────────────
+  #
+  # The `test` job above installs `requirements.txt` (exact pins) and then the
+  # package with `-e . --no-deps`. That is the right thing for testing the
+  # code, but it means two claims this project makes go completely unverified:
+  #
+  #   1. That the BUILT ARTIFACT works. An editable install imports straight
+  #      out of `src/`, so a file missing from `[tool.setuptools.package-data]`
+  #      — `_golden.json`, `py.typed`, the template library — is invisible in
+  #      CI and breaks only for someone who ran `pip install openflo`.
+  #
+  #   2. That the declared RANGES are true. `numpy>=2.0,<3` promises a span of
+  #      versions; pip resolves the newest, and requirements.txt pins one exact
+  #      point. Nothing ever installs the floor, so every lower bound in
+  #      pyproject.toml is an assertion no test can falsify — the same
+  #      "check that cannot fail" shape this codebase keeps finding, in
+  #      packaging form.
+  #
+  # So: build the wheel, install it into a clean environment at BOTH edges of
+  # the declared ranges, and make the installed artifact prove itself by
+  # reproducing the golden baseline and passing the response controls.
+  #
+  # This job earned its place immediately: it found that matplotlib 3.8.0-3.8.3
+  # declare `numpy<2`, making the floor combination a ResolutionImpossible even
+  # though the two versions run together fine. Bisection had used --no-deps,
+  # which skips the declared bound and hid it.
+  install:
+    name: install ${{ matrix.resolution }} deps / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash          # one code path for the wheel glob on both OSes
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # The floor: the oldest dependency set we claim to support, on the
+          # oldest Python we claim to support (`requires-python = >=3.11`).
+          # These move together on purpose — the floors were picked as "the
+          # first release built for numpy 2", and numpy 2.0 ships no wheels
+          # for 3.13, so the old stack can only be exercised on an old Python.
+          - os: ubuntu-latest
+            python: "3.11"
+            resolution: lowest
+          - os: windows-latest
+            python: "3.11"
+            resolution: lowest
+          # The ceiling: whatever pip resolves today, which is what a user
+          # actually gets from `pip install openflo`.
+          - os: ubuntu-latest
+            python: "3.12"
+            resolution: highest
+          - os: windows-latest
+            python: "3.12"
+            resolution: highest
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+
+      - name: Build the wheel
+        run: |
+          python -m pip install --upgrade pip build
+          python -m build --wheel --outdir dist
+
+      # Generated from pyproject.toml rather than hand-maintained: widening a
+      # floor changes what this job installs, with no second place to update.
+      - name: Pin every dependency to its declared floor
+        if: matrix.resolution == 'lowest'
+        run: |
+          python scripts/lowest_direct_requirements.py > lowest.txt
+          cat lowest.txt
+
+      # A CI runner has a C compiler, so `pip install` at the floor succeeds by
+      # BUILDING any dependency that ships no wheel — and the leg goes green
+      # while an ordinary user, a slim container or a minimal image fails at
+      # exactly that point. That is not hypothetical: the psutil floor was
+      # 5.9, and psutil 5.9.0-5.9.3 publish Linux wheels only up to cp310, so
+      # Python 3.11 had to compile it. ubuntu-latest did so without comment;
+      # python:3.11-slim could not. Assert the property the user cares about
+      # instead of relying on the runner to lack a toolchain.
+      - name: Every floor pin must ship a wheel for this platform
+        if: matrix.resolution == 'lowest'
+        run: |
+          python - <<'PY'
+          import pathlib
+          import subprocess
+          import sys
+
+          # FlowIO publishes an sdist only, but it is pure Python: pip builds
+          # it with setuptools alone, no compiler needed. Every other floor pin
+          # carries C extensions, so a missing wheel there means the user needs
+          # a toolchain we never told them about.
+          PURE_PYTHON_SDIST_ONLY = {'FlowIO'}
+
+          missing = []
+          for line in pathlib.Path('lowest.txt').read_text().splitlines():
+              line = line.strip()
+              if not line or line.startswith('#'):
+                  continue
+              if line.split('==')[0] in PURE_PYTHON_SDIST_ONLY:
+                  continue
+              probe = subprocess.run(
+                  [sys.executable, '-m', 'pip', 'download', '--no-deps',
+                   '--only-binary=:all:', '--dest', 'wheelprobe', line],
+                  capture_output=True, text=True)
+              status = 'wheel' if probe.returncode == 0 else 'NO WHEEL'
+              print(f'  {status:8}  {line}')
+              if probe.returncode != 0:
+                  missing.append(line)
+
+          if missing:
+              raise SystemExit(
+                  'These floor pins have no wheel here, so installing them '
+                  'requires a C compiler: ' + ', '.join(missing) + '. Raise '
+                  'the floor to the first release that ships one.')
+          print('every floor pin ships a wheel for this platform')
+          PY
+
+      # No `-e`, no `--no-deps`: resolve for real, from the artifact, the way a
+      # user does. `pytest` comes along so the response controls can run.
+      - name: Install the wheel (floor)
+        if: matrix.resolution == 'lowest'
+        run: pip install dist/*.whl pytest -c lowest.txt
+
+      - name: Install the wheel (newest resolvable)
+        if: matrix.resolution == 'highest'
+        run: pip install dist/*.whl pytest
+
+      # A src-layout checkout puts nothing importable in the working directory,
+      # so `import openflo` MUST land in site-packages. If it ever resolves to
+      # the checkout instead, every check below silently reverts to testing the
+      # source tree — exactly the blind spot this job exists to close.
+      - name: Prove we are testing the installed package, not the checkout
+        run: |
+          python - <<'PY'
+          import pathlib
+          import openflo
+          from openflo import selftest          # noqa: F401  (import must work)
+          path = pathlib.Path(openflo.__file__).resolve()
+          assert 'site-packages' in path.parts, f'imported from {path}'
+          print('openflo imported from', path)
+          PY
+
+      # Package data is the failure an editable install cannot see.
+      - name: Check the shipped data files
+        run: |
+          python - <<'PY'
+          from importlib.resources import files
+          root = files('openflo')
+          for name in ('_golden.json', 'py.typed'):
+              assert root.joinpath(name).is_file(), f'{name} missing from the wheel'
+          templates = [p.name for p in root.joinpath('template_library').iterdir()]
+          assert any(n.endswith('.json') for n in templates), \
+              f'template library shipped empty: {templates}'
+          print(f'package data ok ({len(templates)} template files)')
+          PY
+
+      - name: Check for conflicting requirements
+        run: pip check
+
+      # Exits 1 when unhealthy. Runs the seeded behavioural self-test, so this
+      # asserts the INSTALLED artifact still reproduces the golden baseline on
+      # this dependency set — a numeric change from a dependency shows up here.
+      - name: Doctor (golden baseline, from the install)
+        env:
+          MPLBACKEND: Agg
+        run: openflo-doctor
+
+      # The controls are relational, so unlike the golden they should hold at
+      # every point in the range. A failure here means a dependency changed a
+      # RESPONSE, not just a digit.
+      - name: Response controls
+        env:
+          MPLBACKEND: Agg
+        run: pytest tests/test_selftest_controls.py -q
+
+      # The console scripts are declared in pyproject.toml; nothing else checks
+      # that they were actually generated and are runnable.
+      - name: Check the console scripts exist
+        run: |
+          openflo-run --help > /dev/null
+          openflo-selftest > /dev/null
+          echo "console scripts ok"

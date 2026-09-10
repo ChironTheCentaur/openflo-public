@@ -1,0 +1,53 @@
+{
+  "_comment": "Golden behavior baseline for `openflo-selftest` and the pytest continuity suite. Values are computed from the SEEDED synthetic generators (openflo.synthetic), so they must reproduce run-to-run. A metric drifting outside its tolerance means a feature's behavior changed. Update these numbers ONLY for an intended change (regenerate via `openflo-selftest --update`). The tight 1e-9 tolerances on count/literal metrics (debris/doublets/compensation) rely on the numpy==2.4.6 pin holding on every synonymous stack (incl. RAPIDS 26.06) \u2014 the RNG stream + pure-float64 ops are then bit-identical, so a numpy bump requires re-baselining. calibration.slope/r2 sit at 1e-3 (KMeans peaks are stable; only LAPACK lstsq wiggles ~1e-12). viability_pct (logicle C-ext + scipy histogram valley) and leiden_n (leidenalg/igraph version) are genuinely platform-variable and stay loose by design. compensation.* APPLY compensation to data with a known spillover baked in and check the true signal is recovered: residual_err is the max error relative to the signal (a transposed matmul leaves this large) and signal_retained guards the degenerate 'zero everything' answer that would flatter the residual. The previous apc_leak metric only round-tripped the generator's own matrix through a CSV and ran no compensation code, so it stayed green through the 2.2.1 transpose bug.",
+  "metrics": {
+    "autoclean.debris_pct": {
+      "value": 7.05,
+      "tol": 1e-09,
+      "label": "Auto-clean debris removed (bead 4 \u00b5m)",
+      "unit": "%"
+    },
+    "autoclean.viability_pct": {
+      "value": 7.97,
+      "tol": 0.6,
+      "label": "Auto-clean dead cells removed (viability)",
+      "unit": "%"
+    },
+    "autoclean.doublets_pct": {
+      "value": 5.0,
+      "tol": 1e-09,
+      "label": "Auto-clean doublets removed",
+      "unit": "%"
+    },
+    "cluster.leiden_n": {
+      "value": 18,
+      "tol": 2,
+      "label": "Leiden clusters (PBMC, res 0.5)",
+      "unit": "count"
+    },
+    "calibration.slope": {
+      "value": 1.9978,
+      "tol": 0.001,
+      "label": "MESF calibration slope (MESF = 2\u00b7MFI + 100)",
+      "unit": ""
+    },
+    "calibration.r2": {
+      "value": 1.0,
+      "tol": 0.001,
+      "label": "MESF calibration R\u00b2",
+      "unit": ""
+    },
+    "compensation.residual_err": {
+      "value": 0.0,
+      "tol": 1e-09,
+      "label": "Compensation residual vs true signal",
+      "unit": ""
+    },
+    "compensation.signal_retained": {
+      "value": 1.0,
+      "tol": 1e-06,
+      "label": "Compensation signal retained",
+      "unit": "x"
+    }
+  }
+}

@@ -1,0 +1,54 @@
+# RAPIDS reconciliation image — the FULL GPU stack: CuPy (gpu_accel) AND RAPIDS
+# cuML/cuGraph/cuDF (the Linux-only GPU UMAP + clustering in pipeline._probe_gpu).
+#
+# How close can we get to OpenFlo's pins (numpy 2.4.6, pandas 3.0.3)?  Probed
+# empirically (docs/RAPIDS_SHIM.md):
+#   * numpy  → EXACT.  RAPIDS 26.06 ships numpy 2.4.6 — our pin, for free.
+#     (RAPIDS 24.12's Numba hard-capped numpy at 2.0; 26.06's Numba lifts that.)
+#   * pandas → UPSTREAM WALL.  RAPIDS 26.06 ships pandas 2.3.3; cuDF requires
+#     pandas <2.4.0.  Forcing our pandas==3.0.3 breaks cuDF/cuML/cuGraph at
+#     import (`pandas.api.types.is_interval` was removed in pandas 3.0, and
+#     cuDF's pandas-compat layer calls it).  An env has ONE pandas, so cuDF and
+#     our 3.0.3 pin are mutually exclusive until RAPIDS ships pandas-3 support.
+#     We do NOT monkeypatch cuDF's pandas internals — fragile + silent-drift risk.
+#
+# So: take RAPIDS' numpy (already exact) + pandas (2.3.3, one minor below ours),
+# install OpenFlo's OTHER deps with `--upgrade-strategy only-if-needed` so they
+# don't disturb the CUDA stack, then `pip install -e . --no-deps`. The CMD reports
+# resolved versions + whether cuML/cuGraph activate, and runs the suite + golden
+# to confirm OpenFlo behaves identically on RAPIDS' pandas 2.3.3.
+#
+#   docker build -f docker/Dockerfile.rapids -t openflo-rapids .
+#   docker run --rm --gpus all openflo-rapids
+FROM rapidsai/base:26.06-cuda12-py3.12
+
+# OPENFLO_CLI_HELP_TIMEOUT: `python -m openflo.cli --help` imports cuDF/cuML on
+# this image (CUDA + numba warm-up), so the e2e --help wiring checks need a
+# bigger bound than the strict 30 s default CI uses. Import latency, not a bug.
+ENV MPLBACKEND=Agg PYTHONUTF8=1 PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    OPENFLO_CLI_HELP_TIMEOUT=180
+
+USER root
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        git xvfb xauth tk build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+# OpenFlo's non-RAPIDS deps, UNPINNED + only-if-needed so RAPIDS' numpy/pandas/
+# scipy/scikit-learn (and cupy/cuml/cudf/cugraph) are left intact.
+#
+# leidenalg is the ONE exception we pin: run_leiden is CPU-only (sklearn kNN +
+# Jaccard + leidenalg), and leidenalg 0.12 returns a different community count
+# than our golden-seeded 0.11 (probed: leiden_n 15 vs 18). Pinning ==0.11.0
+# restores EXACT Leiden parity with the Windows stack on RAPIDS' numpy/sklearn —
+# i.e. clustering results stay synonymous. (numpy 2.0 / sklearn 1.6 do not
+# perturb the kNN; only the leidenalg version mattered.)
+RUN pip install --upgrade-strategy only-if-needed \
+        FlowIO FlowUtils openpyxl PhenoGraph umap-learn igraph leidenalg==0.11.0 \
+        matplotlib seaborn psutil tqdm tkinterdnd2 pytest pytest-xdist
+COPY . .
+RUN pip install -e . --no-deps
+
+# Report the reconciled stack + the RAPIDS GPU availability, then run the suite
+# + golden (confirms OpenFlo behaves on RAPIDS' numpy/pandas).
+CMD ["bash", "-lc", "python - <<'PY'\nimport numpy,pandas,scipy,sklearn\nprint('numpy',numpy.__version__,'| pandas',pandas.__version__,'| scipy',scipy.__version__,'| sklearn',sklearn.__version__)\ntry:\n    import cupy,cudf,cuml,cugraph\n    print('cupy',cupy.__version__,'| cudf',cudf.__version__,'| cuml',cuml.__version__,'| cugraph',cugraph.__version__)\nexcept Exception as e:\n    print('RAPIDS import FAILED:',e)\nfrom openflo.pipeline import GPU_AVAILABLE,GPU_CLUSTERING_AVAILABLE,GPU_NAME\nprint('GPU_AVAILABLE',GPU_AVAILABLE,'| GPU_CLUSTERING_AVAILABLE',GPU_CLUSTERING_AVAILABLE,'| name',GPU_NAME)\nPY\necho '=== suite + golden ==='; xvfb-run -a pytest -n auto -q; python -m openflo.diagnostics --quick"]

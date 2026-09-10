@@ -1,0 +1,43 @@
+{
+  "name": "Acquisition QC (time + margins)",
+  "description": "Instrument-quality cleanup with no biology: margin saturation, flow-rate anomalies (bubbles/clogs) and signal drift over the acquisition. Equivalent to flowAI/PeacoQC time-based QC.",
+  "version": 2,
+  "gates": [
+    {
+      "id": "g1",
+      "parent_id": null,
+      "kind": "autoclean",
+      "name": "Acquisition QC (time + margins)",
+      "color": "#808080",
+      "open": false,
+      "methods": [
+        {
+          "key": "margin",
+          "label": "Margin (saturation)",
+          "enabled": true,
+          "params": {
+            "margin_frac": 0.01
+          }
+        },
+        {
+          "key": "flow_rate",
+          "label": "Flow rate (bubbles/clogs)",
+          "enabled": true,
+          "params": {
+            "n_bins": 200,
+            "flow_rate_threshold": 5.0
+          }
+        },
+        {
+          "key": "drift",
+          "label": "Signal drift",
+          "enabled": true,
+          "params": {
+            "n_bins": 200,
+            "threshold": 5
+          }
+        }
+      ]
+    }
+  ]
+}
