@@ -1,0 +1,96 @@
+name: Bug report
+description: Report something that isn't working as expected.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for filing a bug. Flow cytometry tooling is sensitive to
+        instrument quirks and panel choices — the more you can tell us
+        below, the faster we can reproduce it.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: One- or two-sentence summary, then steps to reproduce.
+      placeholder: |
+        e.g. "Phenograph clustering crashes when k > number of events.
+        Steps:
+          1. openflo-run --trials test_fcs/ --max-events 25 --k 30
+          2. Pipeline aborts at the cluster step."
+    validations:
+      required: true
+
+  - type: textarea
+    id: traceback
+    attributes:
+      label: Full traceback / error output
+      description: Paste the entire output. Don't trim it — the lines you
+        cut out are usually the ones we need.
+      render: text
+    validations:
+      required: true
+
+  - type: input
+    id: openflo-version
+    attributes:
+      label: OpenFlo version
+      description: |
+        Output of `python -c "import openflo; print(openflo.__version__)"`
+    validations:
+      required: true
+
+  - type: input
+    id: python
+    attributes:
+      label: Python version
+      description: Output of `python --version`
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - Windows
+        - macOS
+        - Linux
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: deps
+    attributes:
+      label: Dependency versions
+      description: |
+        Output of:
+        ```
+        pip freeze | grep -iE "flow|phenograph|umap|numpy|scipy|matplotlib"
+        ```
+      render: text
+
+  - type: input
+    id: instrument
+    attributes:
+      label: Cytometer (if relevant)
+      description: |
+        From the FCS `$CYT` keyword if you have it handy
+        (e.g. "LSRFortessa", "Aurora", "CytoFLEX").
+
+  - type: input
+    id: channels
+    attributes:
+      label: Channel count + panel
+      description: |
+        e.g. "5 channels: FSC-A, SSC-A, BV421-A, APC-A, PE-Cy7-A"
+
+  - type: textarea
+    id: extras
+    attributes:
+      label: Anything else?
+      description: |
+        Screenshots, sample FCS (anonymised), workspace files — drag-drop
+        them into this field.

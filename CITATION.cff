@@ -1,0 +1,120 @@
+cff-version: 1.2.0
+title: "OpenFlo: a flow cytometry analysis pipeline with FlowJo round-trip"
+message: "If you use this software, please cite it as below."
+type: software
+authors:
+  - given-names: "Skyler"
+    family-names: "Niedzielski"
+    orcid: "https://orcid.org/0009-0004-4727-4639"
+license: MIT
+repository-code: "https://github.com/ChironTheCentaur/openflo"
+version: "1.3.0"
+date-released: "2026-06-24"
+keywords:
+  - flow-cytometry
+  - fcs
+  - phenograph
+  - umap
+  - flowjo
+  - gating
+references:
+  - type: article
+    authors:
+      - family-names: Levine
+        given-names: Jacob H.
+    title: "Data-Driven Phenotypic Dissection of AML Reveals Progenitor-like Cells that Correlate with Prognosis (PhenoGraph)"
+    journal: Cell
+    year: 2015
+    doi: 10.1016/j.cell.2015.05.047
+  - type: article
+    authors:
+      - family-names: McInnes
+        given-names: Leland
+      - family-names: Healy
+        given-names: John
+      - family-names: Melville
+        given-names: James
+    title: "UMAP: Uniform Manifold Approximation and Projection for Dimension Reduction"
+    year: 2018
+    url: "https://arxiv.org/abs/1802.03426"
+  - type: article
+    authors:
+      - family-names: Traag
+        given-names: Vincent A.
+      - family-names: Waltman
+        given-names: Ludo
+      - family-names: van Eck
+        given-names: Nees Jan
+    title: "From Louvain to Leiden: guaranteeing well-connected communities"
+    journal: Scientific Reports
+    year: 2019
+    doi: 10.1038/s41598-019-41695-z
+  - type: article
+    authors:
+      - family-names: Van Gassen
+        given-names: Sofie
+    title: "FlowSOM: Using self-organizing maps for visualization and interpretation of cytometry data"
+    journal: Cytometry Part A
+    year: 2015
+    doi: 10.1002/cyto.a.22625
+  - type: article
+    authors:
+      - family-names: van der Maaten
+        given-names: Laurens
+      - family-names: Hinton
+        given-names: Geoffrey
+    title: "Visualizing Data using t-SNE"
+    journal: Journal of Machine Learning Research
+    year: 2008
+    url: "https://www.jmlr.org/papers/v9/vandermaaten08a.html"
+  - type: article
+    authors:
+      - family-names: Moon
+        given-names: Kevin R.
+    title: "Visualizing structure and transitions in high-dimensional biological data (PHATE)"
+    journal: Nature Biotechnology
+    year: 2019
+    doi: 10.1038/s41587-019-0336-3
+  - type: article
+    authors:
+      - family-names: Amid
+        given-names: Ehsan
+      - family-names: Warmuth
+        given-names: Manfred K.
+    title: "TriMap: Large-scale Dimensionality Reduction Using Triplets"
+    year: 2019
+    url: "https://arxiv.org/abs/1910.00204"
+  - type: article
+    authors:
+      - family-names: Wang
+        given-names: Yingfan
+      - family-names: Huang
+        given-names: Haiyang
+      - family-names: Rudin
+        given-names: Cynthia
+      - family-names: Shaposhnik
+        given-names: Yaron
+    title: "Understanding How Dimension Reduction Tools Work (PaCMAP)"
+    journal: Journal of Machine Learning Research
+    year: 2021
+    url: "https://arxiv.org/abs/2012.04456"
+  - type: article
+    authors:
+      - family-names: Parks
+        given-names: David R.
+      - family-names: Roederer
+        given-names: Mario
+      - family-names: Moore
+        given-names: Wayne A.
+    title: "A new 'Logicle' display method avoids deceptive effects of logarithmic scaling for low signals and compensated data"
+    journal: Cytometry Part A
+    year: 2006
+    doi: 10.1002/cyto.a.20258
+  - type: article
+    authors:
+      - family-names: Van Gassen
+        given-names: Sofie
+    title: "CytoNorm: A Normalization Algorithm to Compensate for Batch Effects in Flow Cytometry Data"
+    journal: Cytometry Part A
+    year: 2020
+    doi: 10.1002/cyto.a.23904

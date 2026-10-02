@@ -1,0 +1,15 @@
+{
+  "name": "Example 3-colour panel",
+  "description": "Example threshold gates for a generic 3-colour panel (CD11b / CD34 / CD45). Replace these values with your run's FMO-derived gates, then save as a new template name. Values are on the logicle-transformed scale (0-1 ish).",
+  "version": 2,
+  "gates": [
+    { "kind": "threshold", "channel": "BV421-A", "value": 0.625 },
+    { "kind": "threshold", "channel": "APC-A",           "value": 0.422 },
+    { "kind": "threshold", "channel": "PE-Cy7-A",        "value": 0.474 }
+  ],
+  "labels": {
+    "BV421-A": "CD11b",
+    "APC-A":           "CD34",
+    "PE-Cy7-A":        "CD45"
+  }
+}

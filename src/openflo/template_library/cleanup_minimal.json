@@ -1,0 +1,35 @@
+{
+  "name": "Minimal cleanup (debris + doublets)",
+  "description": "Fast, conservative cleanup: low-FSC debris and FSC-A/FSC-H doublets only. A good default when you only want size/singlet gating.",
+  "version": 2,
+  "gates": [
+    {
+      "id": "g1",
+      "parent_id": null,
+      "kind": "autoclean",
+      "name": "Minimal cleanup (debris + doublets)",
+      "color": "#808080",
+      "open": false,
+      "methods": [
+        {
+          "key": "debris",
+          "label": "Debris (size: beads \u2192 valley)",
+          "enabled": true,
+          "params": {
+            "mode": "bead",
+            "bead_um": 8.0,
+            "min_um": 4.0
+          }
+        },
+        {
+          "key": "doublets",
+          "label": "Doublets (FSC-A/FSC-H)",
+          "enabled": true,
+          "params": {
+            "tol": 0.25
+          }
+        }
+      ]
+    }
+  ]
+}
