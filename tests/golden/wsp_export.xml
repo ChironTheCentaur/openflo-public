@@ -1,0 +1,485 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Workspace xmlns:data-type="http://www.isac-net.org/std/Gating-ML/v2.0/datatypes" xmlns:gating="http://www.isac-net.org/std/Gating-ML/v2.0/gating" xmlns:transforms="http://www.isac-net.org/std/Gating-ML/v2.0/transformations" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" version="20.0" modDate="(date)" flowJoVersion="OpenFlo-export-1.0" xsi:schemaLocation="http://www.isac-net.org/std/Gating-ML/v2.0/gating http://www.isac-net.org/std/Gating-ML/v2.0/gating/Gating-ML.v2.0.xsd http://www.isac-net.org/std/Gating-ML/v2.0/transformations http://www.isac-net.org/std/Gating-ML/v2.0/transformations/Transformations.v2.0.xsd http://www.isac-net.org/std/Gating-ML/v2.0/datatypes http://www.isac-net.org/std/Gating-ML/v2.0/datatypes/DataTypes.v2.0.xsd">
+  <Matrices>
+    <transforms:spilloverMatrix spectral="0" weightOptAlgorithmType="OLS" prefix="Comp-" name="Acquisition-defined" editable="0" color="#c0c0c0" version="OpenFlo-export-1.0" status="FINALIZED" transforms:id="matrix-1" suffix="">
+      <data-type:parameters>
+        <data-type:parameter data-type:name="FL1-A" userProvidedCompInfix="Comp-FL1-A" />
+        <data-type:parameter data-type:name="FL2-A" userProvidedCompInfix="Comp-FL2-A" />
+      </data-type:parameters>
+      <transforms:spillover data-type:parameter="FL1-A" userProvidedCompInfix="Comp-FL1-A">
+        <transforms:coefficient data-type:parameter="FL1-A" transforms:value="1.0" />
+        <transforms:coefficient data-type:parameter="FL2-A" transforms:value="0.12" />
+      </transforms:spillover>
+      <transforms:spillover data-type:parameter="FL2-A" userProvidedCompInfix="Comp-FL2-A">
+        <transforms:coefficient data-type:parameter="FL1-A" transforms:value="0.03" />
+        <transforms:coefficient data-type:parameter="FL2-A" transforms:value="1.0" />
+      </transforms:spillover>
+    </transforms:spilloverMatrix>
+  </Matrices>
+  <Cytometers>
+    <Cytometer name="Golden" cyt="Golden" transformType="BIEX" manufacturer="" serialnumber="" />
+  </Cytometers>
+  <Groups>
+    <GroupNode name="All Samples" owningGroup="All Samples" expanded="1" sortPriority="10">
+      <Group name="All Samples">
+        <SampleRefs>
+          <SampleRef sampleID="1" />
+        </SampleRefs>
+      </Group>
+    </GroupNode>
+  </Groups>
+  <SampleList>
+    <Sample>
+      <DataSet uri="file:/(fcs)" sampleID="1" />
+      <transforms:spilloverMatrix spectral="0" weightOptAlgorithmType="OLS" prefix="Comp-" name="Acquisition-defined" editable="0" color="#c0c0c0" version="OpenFlo-export-1.0" status="FINALIZED" transforms:id="matrix-1" suffix="">
+        <data-type:parameters>
+          <data-type:parameter data-type:name="FL1-A" userProvidedCompInfix="Comp-FL1-A" />
+          <data-type:parameter data-type:name="FL2-A" userProvidedCompInfix="Comp-FL2-A" />
+        </data-type:parameters>
+        <transforms:spillover data-type:parameter="FL1-A" userProvidedCompInfix="Comp-FL1-A">
+          <transforms:coefficient data-type:parameter="FL1-A" transforms:value="1.0" />
+          <transforms:coefficient data-type:parameter="FL2-A" transforms:value="0.12" />
+        </transforms:spillover>
+        <transforms:spillover data-type:parameter="FL2-A" userProvidedCompInfix="Comp-FL2-A">
+          <transforms:coefficient data-type:parameter="FL1-A" transforms:value="0.03" />
+          <transforms:coefficient data-type:parameter="FL2-A" transforms:value="1.0" />
+        </transforms:spillover>
+      </transforms:spilloverMatrix>
+      <Keywords>
+        <Keyword name="FJ_FCS_VERSION" value="3" />
+        <Keyword name="$BEGINANALYSIS" value="0" />
+        <Keyword name="$BEGINDATA" value="702" />
+        <Keyword name="$BEGINSTEXT" value="0" />
+        <Keyword name="$BYTEORD" value="1,2,3,4" />
+        <Keyword name="$DATATYPE" value="F" />
+        <Keyword name="$ENDANALYSIS" value="0" />
+        <Keyword name="$ENDDATA" value="8701" />
+        <Keyword name="$ENDSTEXT" value="0" />
+        <Keyword name="$MODE" value="L" />
+        <Keyword name="$NEXTDATA" value="0" />
+        <Keyword name="$PAR" value="5" />
+        <Keyword name="$TOT" value="400" />
+        <Keyword name="$P1B" value="32" />
+        <Keyword name="$P1E" value="0,0" />
+        <Keyword name="$P1G" value="1.0" />
+        <Keyword name="$P1R" value="262144" />
+        <Keyword name="$P1N" value="FSC-A" />
+        <Keyword name="$P2B" value="32" />
+        <Keyword name="$P2E" value="0,0" />
+        <Keyword name="$P2G" value="1.0" />
+        <Keyword name="$P2R" value="262144" />
+        <Keyword name="$P2N" value="SSC-A" />
+        <Keyword name="$P3B" value="32" />
+        <Keyword name="$P3E" value="0,0" />
+        <Keyword name="$P3G" value="1.0" />
+        <Keyword name="$P3R" value="262144" />
+        <Keyword name="$P3N" value="FL1-A" />
+        <Keyword name="$P4B" value="32" />
+        <Keyword name="$P4E" value="0,0" />
+        <Keyword name="$P4G" value="1.0" />
+        <Keyword name="$P4R" value="262144" />
+        <Keyword name="$P4N" value="FL2-A" />
+        <Keyword name="$P5B" value="32" />
+        <Keyword name="$P5E" value="0,0" />
+        <Keyword name="$P5G" value="1.0" />
+        <Keyword name="$P5R" value="262144" />
+        <Keyword name="$P5N" value="Time" />
+        <Keyword name="$TIMESTEP" value="0.01" />
+        <Keyword name="SPILL" value="2,FL1-A,FL2-A,1,0.12,0.03,1" />
+      </Keywords>
+      <SampleNode name="golden sample" sampleID="1" owningGroup="" expanded="1" sortPriority="10" count="0">
+        <Subpopulations>
+          <Population name="Time" count="0" owningGroup="" expanded="1" sortPriority="10">
+            <Gate gating:id="t">
+              <gating:RectangleGate>
+                <gating:dimension gating:min="1.0" gating:max="150.0">
+                  <data-type:fcs-dimension data-type:name="Time" />
+                </gating:dimension>
+              </gating:RectangleGate>
+            </Gate>
+            <Subpopulations>
+              <Population name="Cells" count="0" owningGroup="" expanded="1" sortPriority="10">
+                <Gate gating:id="cells">
+                  <gating:PolygonGate>
+                    <gating:dimension>
+                      <data-type:fcs-dimension data-type:name="FSC-A" />
+                    </gating:dimension>
+                    <gating:dimension>
+                      <data-type:fcs-dimension data-type:name="SSC-A" />
+                    </gating:dimension>
+                    <gating:vertex>
+                      <gating:coordinate data-type:value="20000.0" />
+                      <gating:coordinate data-type:value="-2000.0" />
+                    </gating:vertex>
+                    <gating:vertex>
+                      <gating:coordinate data-type:value="190000.0" />
+                      <gating:coordinate data-type:value="-2000.0" />
+                    </gating:vertex>
+                    <gating:vertex>
+                      <gating:coordinate data-type:value="190000.0" />
+                      <gating:coordinate data-type:value="140000.0" />
+                    </gating:vertex>
+                    <gating:vertex>
+                      <gating:coordinate data-type:value="20000.0" />
+                      <gating:coordinate data-type:value="140000.0" />
+                    </gating:vertex>
+                  </gating:PolygonGate>
+                </Gate>
+                <Subpopulations>
+                  <Population name="Large" count="0" owningGroup="" expanded="1" sortPriority="10">
+                    <Gate gating:id="big">
+                      <gating:RectangleGate>
+                        <gating:dimension gating:min="50000.0" gating:max="260000.0">
+                          <data-type:fcs-dimension data-type:name="FSC-A" />
+                        </gating:dimension>
+                        <gating:dimension gating:min="0.0" gating:max="260000.0">
+                          <data-type:fcs-dimension data-type:name="SSC-A" />
+                        </gating:dimension>
+                      </gating:RectangleGate>
+                    </Gate>
+                  </Population>
+                  <Population name="FL1+" count="0" owningGroup="" expanded="1" sortPriority="10">
+                    <Gate gating:id="fl1">
+                      <gating:RectangleGate>
+                        <gating:dimension gating:min="1000.0">
+                          <data-type:fcs-dimension data-type:name="Comp-FL1-A" />
+                        </gating:dimension>
+                      </gating:RectangleGate>
+                    </Gate>
+                  </Population>
+                  <Population name="Blob" count="0" owningGroup="" expanded="1" sortPriority="10">
+                    <Gate gating:id="ell">
+                      <gating:PolygonGate>
+                        <gating:dimension>
+                          <data-type:fcs-dimension data-type:name="Comp-FL1-A" />
+                        </gating:dimension>
+                        <gating:dimension>
+                          <data-type:fcs-dimension data-type:name="Comp-FL2-A" />
+                        </gating:dimension>
+                        <gating:vertex>
+                          <gating:coordinate data-type:value="2000.964526" />
+                          <gating:coordinate data-type:value="1666.800629" />
+                        </gating:vertex>
+                        <gating:vertex>
+                          <gating:coordinate data-type:value="1995.181553" />
+                          <gating:coordinate data-type:value="1841.811558" />
+                        </gating:vertex>
+                        <gating:vertex>
+                          <gating:coordinate data-type:value="1977.888329" />
+                          <gating:coordinate data-type:value="2013.530656" />
+                        </gating:vertex>
+                        <gating:vertex>
+                          <gating:coordinate data-type:value="1949.251397" />
+                          <gating:coordinate data-type:value="2180.304173" />
+                        </gating:vertex>
+                        <gating:vertex>
+                          <gating:coordinate data-type:value="1909.546545" />
+                          <gating:coordinate data-type:value="2340.525988" />
+                        </gating:vertex>
+                        <gating:vertex>
+                          <gating:coordinate data-type:value="1859.156153" />
+                          <gating:coordinate data-type:value="2492.653079" />
+                        </gating:vertex>
+                        <gating:vertex>
+                          <gating:coordinate data-type:value="1798.565509" />
+                          <gating:coordinate data-type:value="2635.220378" />
+                        </gating:vertex>
+                        <gating:vertex>
+                          <gating:coordinate data-type:value="1728.358133" />
+                          <gating:coordinate data-type:value="2766.854884" />
+                        </gating:vertex>
+                        <gating:vertex>
+                          <gating:coordinate data-type:value="1649.21016" />
+                          <gating:coordinate data-type:value="2886.288885" />
+                        </gating:vertex>
+                        <gating:vertex>
+                          <gating:coordinate data-type:value="1561.88383" />
+                          <gating:coordinate data-type:value="2992.372167" />
+                        </gating:vertex>
+                        <gating:vertex>
+                          <gating:coordinate data-type:value="1467.220141" />
+                          <gating:coordinate data-type:value="3084.083088" />
+                        </gating:vertex>
+                        <gating:vertex>
+                          <gating:coordinate data-type:value="1366.130759" />
+                          <gating:coordinate data-type:value="3160.538424" />
+                        </gating:vertex>
+                        <gating:vertex>
+                          <gating:coordinate data-type:value="1259.589227" />
+                          <gating:coordinate data-type:value="3221.001867" />
+                        </gating:vertex>
+                        <gating:vertex>
+                          <gating:coordinate data-type:value="1148.6216" />
+                          <gating:coordinate data-type:value="3264.891121" />
+                        </gating:vertex>
+                        <gating:vertex>
+                          <gating:coordinate data-type:value="1034.296556" />
+                          <gating:coordinate data-type:value="3291.783508" />
+                        </gating:vertex>
+                        <gating:vertex>
+                          <gating:coordinate data-type:value="917.7151085" />
+                          <gating:coordinate data-type:value="3301.420041" />
+                        </gating:vertex>
+                        <gating:vertex>
+                          <gating:coordinate data-type:value="800" />
+                          <gating:coordinate data-type:value="3293.707915" />
+                        </gating:vertex>
+                        <gating:vertex>
+                          <gating:coordinate data-type:value="682.2848915" />
+                          <gating:coordinate data-type:value="3268.7214" />
+                        </gating:vertex>
+                        <gating:vertex>
+                          <gating:coordinate data-type:value="565.7034439" />
+                          <gating:coordinate data-type:value="3226.701132" />
+                        </gating:vertex>
+                        <gating:vertex>
+                          <gating:coordinate data-type:value="451.3784002" />
+                          <gating:coordinate data-type:value="3168.051787" />
+                        </gating:vertex>
+                        <gating:vertex>
+                          <gating:coordinate data-type:value="340.4107731" />
+                          <gating:coordinate data-type:value="3093.338193" />
+                        </gating:vertex>
+                        <gating:vertex>
+                          <gating:coordinate data-type:value="233.8692415" />
+                          <gating:coordinate data-type:value="3003.27988" />
+                        </gating:vertex>
+                        <gating:vertex>
+                          <gating:coordinate data-type:value="132.7798585" />
+                          <gating:coordinate data-type:value="2898.74416" />
+                        </gating:vertex>
+                        <gating:vertex>
+                          <gating:coordinate data-type:value="38.1161703" />
+                          <gating:coordinate data-type:value="2780.73777" />
+                        </gating:vertex>
+                        <gating:vertex>
+                          <gating:coordinate data-type:value="-49.21016017" />
+                          <gating:coordinate data-type:value="2650.397174" />
+                        </gating:vertex>
+                        <gating:vertex>
+                          <gating:coordinate data-type:value="-128.3581326" />
+                          <gating:coordinate data-type:value="2508.977625" />
+                        </gating:vertex>
+                        <gating:vertex>
+                          <gating:coordinate data-type:value="-198.5655087" />
+                          <gating:coordinate data-type:value="2357.84107" />
+                        </gating:vertex>
+                        <gating:vertex>
+                          <gating:coordinate data-type:value="-259.156153" />
+                          <gating:coordinate data-type:value="2198.443037" />
+                        </gating:vertex>
+                        <gating:vertex>
+                          <gating:coordinate data-type:value="-309.5465447" />
+                          <gating:coordinate data-type:value="2032.318615" />
+                        </gating:vertex>
+                        <gating:vertex>
+                          <gating:coordinate data-type:value="-349.2513965" />
+                          <gating:coordinate data-type:value="1861.067674" />
+                        </gating:vertex>
+                        <gating:vertex>
+                          <gating:coordinate data-type:value="-377.8883292" />
+                          <gating:coordinate data-type:value="1686.339453" />
+                        </gating:vertex>
+                        <gating:vertex>
+                          <gating:coordinate data-type:value="-395.1815534" />
+                          <gating:coordinate data-type:value="1509.816682" />
+                        </gating:vertex>
+                        <gating:vertex>
+                          <gating:coordinate data-type:value="-400.9645258" />
+                          <gating:coordinate data-type:value="1333.199371" />
+                        </gating:vertex>
+                        <gating:vertex>
+                          <gating:coordinate data-type:value="-395.1815534" />
+                          <gating:coordinate data-type:value="1158.188442" />
+                        </gating:vertex>
+                        <gating:vertex>
+                          <gating:coordinate data-type:value="-377.8883292" />
+                          <gating:coordinate data-type:value="986.4693441" />
+                        </gating:vertex>
+                        <gating:vertex>
+                          <gating:coordinate data-type:value="-349.2513965" />
+                          <gating:coordinate data-type:value="819.6958274" />
+                        </gating:vertex>
+                        <gating:vertex>
+                          <gating:coordinate data-type:value="-309.5465447" />
+                          <gating:coordinate data-type:value="659.4740118" />
+                        </gating:vertex>
+                        <gating:vertex>
+                          <gating:coordinate data-type:value="-259.156153" />
+                          <gating:coordinate data-type:value="507.346921" />
+                        </gating:vertex>
+                        <gating:vertex>
+                          <gating:coordinate data-type:value="-198.5655087" />
+                          <gating:coordinate data-type:value="364.7796219" />
+                        </gating:vertex>
+                        <gating:vertex>
+                          <gating:coordinate data-type:value="-128.3581326" />
+                          <gating:coordinate data-type:value="233.1451157" />
+                        </gating:vertex>
+                        <gating:vertex>
+                          <gating:coordinate data-type:value="-49.21016017" />
+                          <gating:coordinate data-type:value="113.7111145" />
+                        </gating:vertex>
+                        <gating:vertex>
+                          <gating:coordinate data-type:value="38.1161703" />
+                          <gating:coordinate data-type:value="7.627833157" />
+                        </gating:vertex>
+                        <gating:vertex>
+                          <gating:coordinate data-type:value="132.7798585" />
+                          <gating:coordinate data-type:value="-84.08308844" />
+                        </gating:vertex>
+                        <gating:vertex>
+                          <gating:coordinate data-type:value="233.8692415" />
+                          <gating:coordinate data-type:value="-160.5384239" />
+                        </gating:vertex>
+                        <gating:vertex>
+                          <gating:coordinate data-type:value="340.4107731" />
+                          <gating:coordinate data-type:value="-221.0018667" />
+                        </gating:vertex>
+                        <gating:vertex>
+                          <gating:coordinate data-type:value="451.3784002" />
+                          <gating:coordinate data-type:value="-264.8911206" />
+                        </gating:vertex>
+                        <gating:vertex>
+                          <gating:coordinate data-type:value="565.7034439" />
+                          <gating:coordinate data-type:value="-291.7835083" />
+                        </gating:vertex>
+                        <gating:vertex>
+                          <gating:coordinate data-type:value="682.2848915" />
+                          <gating:coordinate data-type:value="-301.4200414" />
+                        </gating:vertex>
+                        <gating:vertex>
+                          <gating:coordinate data-type:value="800" />
+                          <gating:coordinate data-type:value="-293.7079146" />
+                        </gating:vertex>
+                        <gating:vertex>
+                          <gating:coordinate data-type:value="917.7151085" />
+                          <gating:coordinate data-type:value="-268.7214001" />
+                        </gating:vertex>
+                        <gating:vertex>
+                          <gating:coordinate data-type:value="1034.296556" />
+                          <gating:coordinate data-type:value="-226.7011316" />
+                        </gating:vertex>
+                        <gating:vertex>
+                          <gating:coordinate data-type:value="1148.6216" />
+                          <gating:coordinate data-type:value="-168.0517874" />
+                        </gating:vertex>
+                        <gating:vertex>
+                          <gating:coordinate data-type:value="1259.589227" />
+                          <gating:coordinate data-type:value="-93.33819254" />
+                        </gating:vertex>
+                        <gating:vertex>
+                          <gating:coordinate data-type:value="1366.130759" />
+                          <gating:coordinate data-type:value="-3.279879909" />
+                        </gating:vertex>
+                        <gating:vertex>
+                          <gating:coordinate data-type:value="1467.220141" />
+                          <gating:coordinate data-type:value="101.2558397" />
+                        </gating:vertex>
+                        <gating:vertex>
+                          <gating:coordinate data-type:value="1561.88383" />
+                          <gating:coordinate data-type:value="219.2622303" />
+                        </gating:vertex>
+                        <gating:vertex>
+                          <gating:coordinate data-type:value="1649.21016" />
+                          <gating:coordinate data-type:value="349.6028257" />
+                        </gating:vertex>
+                        <gating:vertex>
+                          <gating:coordinate data-type:value="1728.358133" />
+                          <gating:coordinate data-type:value="491.0223747" />
+                        </gating:vertex>
+                        <gating:vertex>
+                          <gating:coordinate data-type:value="1798.565509" />
+                          <gating:coordinate data-type:value="642.1589299" />
+                        </gating:vertex>
+                        <gating:vertex>
+                          <gating:coordinate data-type:value="1859.156153" />
+                          <gating:coordinate data-type:value="801.5569635" />
+                        </gating:vertex>
+                        <gating:vertex>
+                          <gating:coordinate data-type:value="1909.546545" />
+                          <gating:coordinate data-type:value="967.6813853" />
+                        </gating:vertex>
+                        <gating:vertex>
+                          <gating:coordinate data-type:value="1949.251397" />
+                          <gating:coordinate data-type:value="1138.932326" />
+                        </gating:vertex>
+                        <gating:vertex>
+                          <gating:coordinate data-type:value="1977.888329" />
+                          <gating:coordinate data-type:value="1313.660547" />
+                        </gating:vertex>
+                        <gating:vertex>
+                          <gating:coordinate data-type:value="1995.181553" />
+                          <gating:coordinate data-type:value="1490.183318" />
+                        </gating:vertex>
+                      </gating:PolygonGate>
+                    </Gate>
+                  </Population>
+                  <Population name="FL1- FL2+" count="0" owningGroup="" expanded="1" sortPriority="10">
+                    <Gate gating:id="q1">
+                      <gating:RectangleGate>
+                        <gating:dimension gating:max="900.0">
+                          <data-type:fcs-dimension data-type:name="Comp-FL1-A" />
+                        </gating:dimension>
+                        <gating:dimension gating:min="1200.0">
+                          <data-type:fcs-dimension data-type:name="Comp-FL2-A" />
+                        </gating:dimension>
+                      </gating:RectangleGate>
+                    </Gate>
+                  </Population>
+                  <Population name="FL1+ FL2+" count="0" owningGroup="" expanded="1" sortPriority="10">
+                    <Gate gating:id="q2">
+                      <gating:RectangleGate>
+                        <gating:dimension gating:min="900.0">
+                          <data-type:fcs-dimension data-type:name="Comp-FL1-A" />
+                        </gating:dimension>
+                        <gating:dimension gating:min="1200.0">
+                          <data-type:fcs-dimension data-type:name="Comp-FL2-A" />
+                        </gating:dimension>
+                      </gating:RectangleGate>
+                    </Gate>
+                    <Subpopulations>
+                      <Population name="Dim SSC" count="0" owningGroup="" expanded="1" sortPriority="10">
+                        <Gate gating:id="kid">
+                          <gating:RectangleGate>
+                            <gating:dimension gating:min="5000.0" gating:max="50000.0">
+                              <data-type:fcs-dimension data-type:name="SSC-A" />
+                            </gating:dimension>
+                          </gating:RectangleGate>
+                        </Gate>
+                      </Population>
+                    </Subpopulations>
+                  </Population>
+                  <Population name="FL1+ FL2-" count="0" owningGroup="" expanded="1" sortPriority="10">
+                    <Gate gating:id="q3">
+                      <gating:RectangleGate>
+                        <gating:dimension gating:min="900.0">
+                          <data-type:fcs-dimension data-type:name="Comp-FL1-A" />
+                        </gating:dimension>
+                        <gating:dimension gating:max="1200.0">
+                          <data-type:fcs-dimension data-type:name="Comp-FL2-A" />
+                        </gating:dimension>
+                      </gating:RectangleGate>
+                    </Gate>
+                  </Population>
+                  <Population name="FL1- FL2-" count="0" owningGroup="" expanded="1" sortPriority="10">
+                    <Gate gating:id="q4">
+                      <gating:RectangleGate>
+                        <gating:dimension gating:max="900.0">
+                          <data-type:fcs-dimension data-type:name="Comp-FL1-A" />
+                        </gating:dimension>
+                        <gating:dimension gating:max="1200.0">
+                          <data-type:fcs-dimension data-type:name="Comp-FL2-A" />
+                        </gating:dimension>
+                      </gating:RectangleGate>
+                    </Gate>
+                  </Population>
+                </Subpopulations>
+              </Population>
+            </Subpopulations>
+          </Population>
+        </Subpopulations>
+      </SampleNode>
+    </Sample>
+  </SampleList>
+</Workspace>

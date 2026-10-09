@@ -1,0 +1,49 @@
+name: Type check
+
+# The one pyright gate, called by ci.yml (every PR and master push) and by
+# release.yml (before a tag is built). It runs scripts/typecheck.py, the same
+# script the pre-push hook runs, so "clean locally" and "clean in CI" are the
+# same claim: same pyright pin, same packages, same interpreter check, same
+# Linux + Windows platforms, and warnings fail here exactly as they do locally.
+#
+# Before this, CI ran bare `pyright` in the test job: no optional backends
+# installed (7 unresolved-import warnings, tolerated), while a developer venv
+# had them -- so the two checked different types and could disagree.
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  typecheck:
+    name: pyright / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          # The developer venv's Python. pyproject's pythonVersion (3.11) sets
+          # the language level pyright checks against either way.
+          python-version: "3.12"
+          cache: pip
+
+      # Same three commands CONTRIBUTING.md gives for a local venv.
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install --no-deps -r requirements-typecheck.txt
+          # [nodejs] ships node as a wheel; the version still comes from the
+          # dev extra's pin, and the script refuses any other.
+          pip install -e ".[dev]" "pyright[nodejs]"
+
+      - name: Type check (Linux + Windows platforms)
+        run: python scripts/typecheck.py --python current

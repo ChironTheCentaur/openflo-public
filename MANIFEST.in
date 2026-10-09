@@ -1,0 +1,12 @@
+# Ship the regression suite + helper scripts in the source distribution so
+# anyone with the sdist can run `pytest` and reproduce the golden baseline.
+# (Wheels still exclude tests/ — they're for development, not the installed lib.)
+recursive-include tests *.py
+recursive-include scripts *.py
+recursive-include templates *.json *.md
+recursive-include src/openflo/template_library *.json *.md
+include CHANGELOG.md
+include src/openflo/_golden.json
+# The public-mirror publisher lists the private tokens its scrub gate blocks,
+# so it must never ship (same reason it is export-ignore in .gitattributes).
+exclude scripts/publish_public.py
