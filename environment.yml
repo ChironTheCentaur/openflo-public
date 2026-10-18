@@ -1,0 +1,65 @@
+# Conda mirror of requirements.txt for users who'd rather not pip.
+# Tested against conda-forge.  Install with:
+#   conda env create -f environment.yml
+#   conda activate openflo
+#   pip install -e .
+#
+# For GPU clustering (cuML / cuGraph / cuDF / CuPy), add the optional
+# RAPIDS block at the bottom — it's commented out by default because
+# it pulls ~3 GB of CUDA dependencies.
+name: openflo
+channels:
+  - conda-forge
+dependencies:
+  - python>=3.11,<3.13
+
+  # Flow cytometry IO + math
+  - flowio=1.4.0
+  - flowutils=1.2.2
+
+  # Numerical / data
+  - numpy=2.4.6
+  - pandas=3.0.3
+  - scipy=1.17.1
+  - scikit-learn=1.8.0
+
+  # Clustering + dim-reduction
+  - phenograph=1.5.7
+  - umap-learn=0.5.12
+  - python-igraph=1.0.0
+  - leidenalg=0.11.0
+  - pynndescent=0.6.0
+  - numba=0.65.1
+  - llvmlite=0.47.0
+
+  # Plotting
+  - matplotlib=3.10.9
+  - seaborn=0.13.2
+  - pillow=12.2.0
+
+  # GUI
+  - tk           # bundled on Windows + macOS Python; conda provides it on Linux
+  - tkinterdnd2=0.4.3    # optional: OS file drag-and-drop into the editor
+
+  # System helpers
+  - psutil=7.2.2
+  - tqdm=4.67.3
+
+  # Dev tools (pull as needed)
+  - pytest>=8.0
+  - ruff>=0.15
+  # pyright is installed via pip-with-bundled-node, conda's pyright lacks
+  # the nodejs wheel that pyright-python brings.
+
+  - pip
+  - pip:
+      # Pyright with bundled Node — conda's pyright misses this dep.
+      - "pyright[nodejs]>=1.1"
+
+# ── Optional: RAPIDS for GPU clustering ─────────────────────────────────────
+# Uncomment and re-run `conda env update -f environment.yml`:
+#
+#   - rapids=24.10
+#
+# Adds cuML / cuGraph / cuDF / CuPy. The pipeline auto-detects GPU at
+# import time and falls back to CPU if any RAPIDS component is missing.
