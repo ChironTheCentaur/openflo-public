@@ -1,0 +1,25 @@
+# Optional backends pyright must SEE, so a local type check and CI's check the
+# same code against the same types. Installed on top of requirements.txt:
+#
+#   pip install --no-deps -r requirements-typecheck.txt
+#
+# Why this file exists: src/ imports these lazily (density.py: cupy;
+# dr_compare.py: phate, trimap, pacmap; interop.py: anndata). A developer venv
+# with them installed resolves those imports; CI used not to install them, so
+# CI typed every call into them as Unknown -- which SUPPRESSES errors -- while
+# the local run checked them. Two environments, two different answers. Now
+# both install exactly these, and scripts/typecheck.py refuses to run when the
+# venv's versions differ from the pins here or in requirements.txt.
+#
+# --no-deps on purpose: pyright reads these packages' source, it never imports
+# them, so their own dependency trees add nothing to the check. And it is the
+# only way to install them at all next to the pinned stack: anndata declares
+# pandas<3 while requirements.txt pins pandas 3.0.3, which pip refuses to
+# resolve. Do not `pip check` a type-check venv; it is not a runtime venv.
+#
+# The versions match a working development venv. Bump them deliberately.
+anndata==0.12.18
+cupy-cuda12x==14.1.1
+pacmap==0.9.1
+phate==2.0.0
+trimap==1.1.5

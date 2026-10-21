@@ -1,0 +1,203 @@
+{
+  "format": "openflo-session",
+  "version": 1,
+  "created": "2026-10-02T17:20:37",
+  "active_sample": "B",
+  "samples": [
+    {
+      "name": "A",
+      "path": "/fixture/fcs/A.fcs",
+      "color": "#1f77b4",
+      "plot_enabled": true,
+      "trial": "out",
+      "basename": "A.fcs",
+      "rel_path": "fcs/A.fcs",
+      "processed_csv": "session_data/A.csv"
+    },
+    {
+      "name": "B",
+      "path": "/fixture/fcs/B.fcs",
+      "color": "#1f77b4",
+      "plot_enabled": false,
+      "trial": "out",
+      "basename": "B.fcs",
+      "rel_path": "fcs/B.fcs"
+    }
+  ],
+  "sample_gates": {
+    "A": [
+      {
+        "kind": "threshold",
+        "channel": "FL1-A",
+        "value": 3.2848176389328123,
+        "op": ">=",
+        "parent_id": null,
+        "name": "CD901b+",
+        "enabled": true,
+        "color": "#e6194b",
+        "id": "g1"
+      },
+      {
+        "kind": "threshold",
+        "channel": "FL2-A",
+        "value": 0.5250456492771423,
+        "op": ">=",
+        "parent_id": "g1",
+        "name": "CD902+",
+        "enabled": true,
+        "color": "#3cb44b",
+        "id": "g2"
+      },
+      {
+        "kind": "threshold",
+        "channel": "U:X",
+        "value": 0.6801297808517341,
+        "op": ">=",
+        "parent_id": null,
+        "name": "X+",
+        "enabled": true,
+        "color": "#ffe119",
+        "id": "g3"
+      }
+    ],
+    "B": [
+      {
+        "kind": "threshold",
+        "channel": "FL1-A",
+        "value": 3.2848176389328123,
+        "op": ">=",
+        "parent_id": null,
+        "name": "CD901b+",
+        "enabled": true,
+        "color": "#e6194b",
+        "id": "g1"
+      },
+      {
+        "kind": "threshold",
+        "channel": "FL2-A",
+        "value": 0.5250456492771423,
+        "op": ">=",
+        "parent_id": "g1",
+        "name": "CD902+",
+        "enabled": true,
+        "color": "#3cb44b",
+        "id": "g2"
+      }
+    ]
+  },
+  "channel_scale": {},
+  "channel_range": {},
+  "channel_labels": {
+    "FSC-A": "FSC-A",
+    "SSC-A": "SSC-A",
+    "FL1-A": "CD901b",
+    "FL2-A": "CD902",
+    "FL3-A": "CD903"
+  },
+  "plot_mode": "dot",
+  "x_channel": "FSC-A",
+  "y_channel": "SSC-A",
+  "color_channel": "By sample",
+  "downsample_display": true,
+  "downsample_propagate": false,
+  "max_points": "60000",
+  "show_removed": false,
+  "contour_scatter": true,
+  "contour_outliers": true,
+  "hist_y_mode": "Fraction",
+  "cluster_labels": {},
+  "audit": [
+    {
+      "seq": 1,
+      "time": "2026-10-02T17:20:37",
+      "action": "sample.load",
+      "details": {
+        "sample": "A",
+        "path": "/fixture/fcs/A.fcs",
+        "n_events": 400,
+        "channels": 5,
+        "trial": "out",
+        "compensation": "auto/$SPILL"
+      }
+    },
+    {
+      "seq": 2,
+      "time": "2026-10-02T17:20:37",
+      "action": "sample.load",
+      "details": {
+        "sample": "B",
+        "path": "/fixture/fcs/B.fcs",
+        "n_events": 400,
+        "channels": 5,
+        "trial": "out",
+        "compensation": "auto/$SPILL"
+      }
+    },
+    {
+      "seq": 3,
+      "time": "2026-10-02T17:20:37",
+      "action": "transform",
+      "details": {
+        "n_channels": 1,
+        "changes": {
+          "FL1-A": "asinh"
+        }
+      }
+    },
+    {
+      "seq": 4,
+      "time": "2026-10-02T17:20:37",
+      "action": "gate.add",
+      "details": {
+        "sample": "A",
+        "id": "g1",
+        "kind": "threshold",
+        "gate": "T  FL1-A > 3.28"
+      }
+    },
+    {
+      "seq": 5,
+      "time": "2026-10-02T17:20:37",
+      "action": "gate.add",
+      "details": {
+        "sample": "A",
+        "id": "g2",
+        "kind": "threshold",
+        "gate": "T  FL2-A > 0.525"
+      }
+    },
+    {
+      "seq": 6,
+      "time": "2026-10-02T17:20:37",
+      "action": "gate.add",
+      "details": {
+        "sample": "A",
+        "id": "g3",
+        "kind": "threshold",
+        "gate": "T  U:X > 0.68"
+      }
+    },
+    {
+      "seq": 7,
+      "time": "2026-10-02T17:20:37",
+      "action": "gate.add",
+      "details": {
+        "sample": "B",
+        "id": "g1",
+        "kind": "threshold",
+        "gate": "T  FL1-A > 3.28"
+      }
+    },
+    {
+      "seq": 8,
+      "time": "2026-10-02T17:20:37",
+      "action": "gate.add",
+      "details": {
+        "sample": "B",
+        "id": "g2",
+        "kind": "threshold",
+        "gate": "T  FL2-A > 0.525"
+      }
+    }
+  ]
+}
