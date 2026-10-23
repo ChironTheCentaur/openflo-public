@@ -1,0 +1,765 @@
+[
+ {
+  "tests": [
+   "tests/test_clustering_reproducible.py::test_the_library_default_is_reproducible"
+  ],
+  "file": "src/openflo/pipeline.py",
+  "find": "                reproducible=True):",
+  "replace": "                reproducible=False):",
+  "why": "clustering defaults to non-reproducible again"
+ },
+ {
+  "tests": [
+   "tests/test_editor_mixins.py::test_editor_module_imports_standalone[openflo.editor_analysis]"
+  ],
+  "file": "src/openflo/editor_analysis.py",
+  "find": "from .editor_base import EditorMixin\n",
+  "replace": "",
+  "why": "the module forgets to import a name it uses (its base class)"
+ },
+ {
+  "tests": [
+   "tests/test_editor_mixins.py::test_editor_module_imports_standalone[openflo.editor_chrome]"
+  ],
+  "file": "src/openflo/editor_chrome.py",
+  "find": "from .editor_base import EditorMixin\n",
+  "replace": "",
+  "why": "the module forgets to import a name it uses (its base class)"
+ },
+ {
+  "tests": [
+   "tests/test_editor_mixins.py::test_editor_module_imports_standalone[openflo.editor_clipboard]"
+  ],
+  "file": "src/openflo/editor_clipboard.py",
+  "find": "from .editor_base import EditorMixin\n",
+  "replace": "",
+  "why": "the module forgets to import a name it uses (its base class)"
+ },
+ {
+  "tests": [
+   "tests/test_editor_mixins.py::test_editor_module_imports_standalone[openflo.editor_dnd]"
+  ],
+  "file": "src/openflo/editor_dnd.py",
+  "find": "from .editor_base import EditorMixin\n",
+  "replace": "",
+  "why": "the module forgets to import a name it uses (its base class)"
+ },
+ {
+  "tests": [
+   "tests/test_editor_mixins.py::test_editor_module_imports_standalone[openflo.editor_figure]"
+  ],
+  "file": "src/openflo/editor_figure.py",
+  "find": "from .editor_base import EditorMixin\n",
+  "replace": "",
+  "why": "the module forgets to import a name it uses (its base class)"
+ },
+ {
+  "tests": [
+   "tests/test_editor_mixins.py::test_editor_module_imports_standalone[openflo.editor_gatetools]"
+  ],
+  "file": "src/openflo/editor_gatetools.py",
+  "find": "from .editor_base import EditorMixin\n",
+  "replace": "",
+  "why": "the module forgets to import a name it uses (its base class)"
+ },
+ {
+  "tests": [
+   "tests/test_editor_mixins.py::test_editor_module_imports_standalone[openflo.editor_plot]"
+  ],
+  "file": "src/openflo/editor_plot.py",
+  "find": "from .editor_base import EditorMixin\n",
+  "replace": "",
+  "why": "the module forgets to import a name it uses (its base class)"
+ },
+ {
+  "tests": [
+   "tests/test_editor_mixins.py::test_editor_module_imports_standalone[openflo.editor_session]"
+  ],
+  "file": "src/openflo/editor_session.py",
+  "find": "from .editor_base import EditorMixin\n",
+  "replace": "",
+  "why": "the module forgets to import a name it uses (its base class)"
+ },
+ {
+  "tests": [
+   "tests/test_editor_mixins.py::test_editor_module_imports_standalone[openflo.editor_stats]"
+  ],
+  "file": "src/openflo/editor_stats.py",
+  "find": "from .editor_base import EditorMixin\n",
+  "replace": "",
+  "why": "the module forgets to import a name it uses (its base class)"
+ },
+ {
+  "tests": [
+   "tests/test_editor_mixins.py::test_editor_module_imports_standalone[openflo.editor_tabs]"
+  ],
+  "file": "src/openflo/editor_tabs.py",
+  "find": "from .editor_base import EditorMixin\n",
+  "replace": "",
+  "why": "the module forgets to import a name it uses (its base class)"
+ },
+ {
+  "tests": [
+   "tests/test_editor_mixins.py::test_editor_module_imports_standalone[openflo.editor_tools]"
+  ],
+  "file": "src/openflo/editor_tools.py",
+  "find": "from .editor_base import EditorMixin\n",
+  "replace": "",
+  "why": "the module forgets to import a name it uses (its base class)"
+ },
+ {
+  "tests": [
+   "tests/test_editor_mixins.py::test_editor_module_imports_standalone[openflo.editor_tree]"
+  ],
+  "file": "src/openflo/editor_tree.py",
+  "find": "from .editor_base import EditorMixin\n",
+  "replace": "",
+  "why": "the module forgets to import a name it uses (its base class)"
+ },
+ {
+  "tests": [
+   "tests/test_exceptions.py::test_subclass_of_openflo_error[FcsParseError]"
+  ],
+  "file": "src/openflo/pipeline.py",
+  "find": "class FcsParseError(OpenFloError):",
+  "replace": "class FcsParseError(Exception):",
+  "why": "FcsParseError leaves the OpenFloError hierarchy"
+ },
+ {
+  "tests": [
+   "tests/test_exceptions.py::test_subclass_of_openflo_error[CompensationError]",
+   "tests/test_exceptions.py::test_can_catch_specific_via_base"
+  ],
+  "file": "src/openflo/pipeline.py",
+  "find": "class CompensationError(OpenFloError):",
+  "replace": "class CompensationError(Exception):",
+  "why": "CompensationError leaves the OpenFloError hierarchy"
+ },
+ {
+  "tests": [
+   "tests/test_exceptions.py::test_subclass_of_openflo_error[WspParseError]"
+  ],
+  "file": "src/openflo/pipeline.py",
+  "find": "class WspParseError(OpenFloError):",
+  "replace": "class WspParseError(Exception):",
+  "why": "WspParseError leaves the OpenFloError hierarchy"
+ },
+ {
+  "tests": [
+   "tests/test_exceptions.py::test_subclass_of_openflo_error[GateError]"
+  ],
+  "file": "src/openflo/pipeline.py",
+  "find": "class GateError(OpenFloError):",
+  "replace": "class GateError(Exception):",
+  "why": "GateError leaves the OpenFloError hierarchy"
+ },
+ {
+  "tests": [
+   "tests/test_exceptions.py::test_subclass_of_openflo_error[ClusteringError]"
+  ],
+  "file": "src/openflo/pipeline.py",
+  "find": "class ClusteringError(OpenFloError):",
+  "replace": "class ClusteringError(Exception):",
+  "why": "ClusteringError leaves the OpenFloError hierarchy"
+ },
+ {
+  "tests": [
+   "tests/test_compensation_fcs_spill.py::test_fixture_writes_the_keyword_as_acquisition_software_does"
+  ],
+  "file": "tests/test_compensation_fcs_spill.py",
+  "find": "size=(200,",
+  "replace": "size=(199,",
+  "why": "the fixture writer writes one event too few"
+ },
+ {
+  "tests": [
+   "tests/test_compensation_fcs_spill.py::test_fixture_writes_the_keyword_as_acquisition_software_does"
+  ],
+  "file": "tests/test_compensation_fcs_spill.py",
+  "find": "meta = {keyword: _SPILL_TEXT} if keyword else None",
+  "replace": "meta = {keyword: _SPILL_TEXT, 'SPILL2': _SPILL_TEXT} if keyword else None",
+  "why": "the fixture writer adds a second spillover keyword"
+ },
+ {
+  "tests": [
+   "tests/test_gui_guard.py::test_probe_survives_a_lost_race"
+  ],
+  "file": "tests/conftest.py",
+  "find": "    for i in range(attempts):",
+  "replace": "    for i in range(1):",
+  "why": "the Tk probe gives up after one lost race"
+ },
+ {
+  "tests": [
+   "tests/test_gui_guard.py::test_probe_still_reports_a_broken_tk"
+  ],
+  "file": "tests/conftest.py",
+  "find": "    return last\n",
+  "replace": "    return None\n",
+  "why": "the Tk probe reports a broken Tk as working"
+ },
+ {
+  "tests": [
+   "tests/test_gui_guard.py::test_a_transient_skip_is_never_converted"
+  ],
+  "file": "tests/conftest.py",
+  "find": " or _TK_TRANSIENT in reason",
+  "replace": "",
+  "why": "a transient Tk skip gets converted to a failure"
+ },
+ {
+  "tests": [
+   "tests/test_gui_guard.py::test_a_tk_skip_with_tk_really_down_still_fails"
+  ],
+  "file": "tests/conftest.py",
+  "find": "    report.outcome = 'failed'",
+  "replace": "    report.outcome = 'skipped'",
+  "why": "a Tk skip with Tk really down stays a skip"
+ },
+ {
+  "tests": [
+   "tests/test_gui_ux.py::test_theme_menu_sets_disabled_foreground"
+  ],
+  "file": "src/openflo/editor_tree.py",
+  "find": "                disabledforeground=pal.get('muted', '#9aa0a6'),\n",
+  "replace": "",
+  "why": "popup menus no longer get the palette disabled colour"
+ },
+ {
+  "tests": [
+   "tests/test_import_is_lazy.py::test_importing_openflo_does_not_load_the_scientific_stack"
+  ],
+  "file": "src/openflo/__init__.py",
+  "find": "from typing import TYPE_CHECKING\n",
+  "replace": "from typing import TYPE_CHECKING\nimport numpy  # noqa\n",
+  "why": "import openflo loads numpy at module level"
+ },
+ {
+  "tests": [
+   "tests/test_no_plausible_fills.py::test_the_scanner_still_finds_the_shape_it_is_looking_for"
+  ],
+  "file": "tests/test_no_plausible_fills.py",
+  "find": "        return v if v == v and abs(v) != float('inf') else None\n",
+  "replace": "        return None\n",
+  "why": "the scanner no longer reads a number out of a fallback"
+ },
+ {
+  "tests": [
+   "tests/test_no_plausible_fills.py::test_a_new_fallback_is_not_excused_by_another_function_s_entry"
+  ],
+  "file": "tests/test_no_plausible_fills.py",
+  "find": "            where = node.name\n",
+  "replace": "            pass\n",
+  "why": "the scanner keys sites by module only, not by function"
+ },
+ {
+  "tests": [
+   "tests/test_plot_cache.py::test_every_editor_data_write_invalidates_the_plot_cache"
+  ],
+  "file": "src/openflo/editor_tools.py",
+  "find": "            s.data = df\n            self._data_changed(name)\n",
+  "replace": "            s.data = df\n",
+  "why": "batch correction writes sample data without invalidating the plot cache"
+ },
+ {
+  "tests": [
+   "tests/test_polygon_gating.py::test_the_order_check_catches_a_rule_that_forgets_the_closing_edge"
+  ],
+  "file": "tests/test_polygon_gating.py",
+  "find": "zip(v[:-1], v[1:], strict=True)",
+  "replace": "zip(v, np.roll(v, -1, axis=0), strict=True)",
+  "why": "the deliberately broken rule gets its closing edge back, so the check has nothing to catch"
+ },
+ {
+  "tests": [
+   "tests/test_polygon_gating.py::test_the_shared_edge_check_catches_a_double_counting_rule",
+   "tests/test_polygon_gating.py::test_the_winding_check_catches_a_winding_dependent_rule"
+  ],
+  "file": "tests/test_polygon_gating.py",
+  "find": "    return Path(np.asarray(verts, dtype=float)).contains_points(pts)",
+  "replace": "    return _points_in_polygon(np.asarray(verts, dtype=float), pts)",
+  "why": "the deliberately broken rule is replaced by the correct one, so the check has nothing to catch"
+ },
+ {
+  "tests": [
+   "tests/test_preferences_wiring.py::test_no_preference_is_read_but_never_written",
+   "tests/test_preferences_wiring.py::test_no_preference_is_written_but_never_read"
+  ],
+  "file": "src/openflo/editor_gating.py",
+  "find": "write_pref('density_cmap',",
+  "replace": "write_pref('density_cmap_x',",
+  "why": "a control writes a preference key nothing reads (and the read key is never written)"
+ },
+ {
+  "tests": [
+   "tests/test_qc_ignores_derived_columns.py::test_every_embedding_prefix_is_listed"
+  ],
+  "file": "src/openflo/pipeline.py",
+  "find": "'PACMAP1', 'PACMAP2', 'PHATE1', 'PHATE2',",
+  "replace": "'PACMAP1', 'PACMAP2',",
+  "why": "PHATE columns stop being excluded from QC"
+ },
+ {
+  "tests": [
+   "tests/test_synthetic.py::test_diff_labels_constant"
+  ],
+  "file": "src/openflo/synthetic.py",
+  "find": "'FL2-A': 'CD902'}",
+  "replace": "'FL2-A': 'CD903'}",
+  "why": "the generator labels two channels with the same marker"
+ },
+ {
+  "tests": [
+   "tests/test_threshold_inclusive.py::test_truth_is_sixty"
+  ],
+  "file": "tests/test_threshold_inclusive.py",
+  "find": "dtype=float), 10)",
+  "replace": "dtype=float), 9)",
+  "why": "the fixture puts 9 events on each value instead of 10"
+ },
+ {
+  "tests": [
+   "tests/test_transforms.py::test_methods_listed"
+  ],
+  "file": "src/openflo/pipeline.py",
+  "find": "TRANSFORM_METHODS = ('logicle', 'hyperlog', 'asinh', 'log', 'linear')",
+  "replace": "TRANSFORM_METHODS = ('logicle', 'hyperlog', 'asinh', 'log')",
+  "why": "the linear transform is dropped"
+ },
+ {
+  "tests": [
+   "tests/test_typecheck_config.py::test_no_pyrightconfig_shadows_pyproject"
+  ],
+  "file": "pyrightconfig.json",
+  "find": "",
+  "replace": "{}\n",
+  "why": "a pyrightconfig.json appears"
+ },
+ {
+  "tests": [
+   "tests/test_ui_dialogs_smoke.py::test_the_sweep_actually_reaches_some_windows"
+  ],
+  "file": "tests/test_ui_dialogs_smoke.py",
+  "find": "if not mod.name.startswith('ui_'):",
+  "replace": "if not mod.name.startswith('ui_x'):",
+  "why": "window discovery finds nothing"
+ },
+ {
+  "tests": [
+   "tests/test_umap_embedding.py::test_embedding_does_not_depend_on_thread_count"
+  ],
+  "file": "src/openflo/pipeline.py",
+  "find": "random_state=random_state).fit_transform(X[sub_mask])",
+  "replace": "random_state=None).fit_transform(X[sub_mask])",
+  "why": "UMAP runs unseeded, so the layout depends on thread interleaving"
+ },
+ {
+  "tests": [
+   "tests/test_workspace_prep_offthread.py::test_the_driver_consults_both_states[_prep]"
+  ],
+  "file": "src/openflo/workspace.py",
+  "find": "getattr(self, '_prep', None)",
+  "replace": "self._cur",
+  "why": "the staging state is collapsed into the running state",
+  "all": true
+ },
+ {
+  "tests": [
+   "tests/test_workspace_prep_offthread.py::test_the_driver_consults_both_states[_cur]"
+  ],
+  "file": "src/openflo/workspace.py",
+  "find": "self._cur is",
+  "replace": "getattr(self, '_prep', None) is",
+  "why": "the running state is collapsed into the staging state",
+  "all": true
+ },
+ {
+  "tests": [
+   "tests/test_drag_tree_refresh.py::test_line_drag_motion_does_not_rebuild_the_tree"
+  ],
+  "file": "src/openflo/editor_gating.py",
+  "find": "            _, key = self._drag_state   # type: ignore[misc]\n",
+  "replace": "            self._refresh_gate_list()\n            _, key = self._drag_state   # type: ignore[misc]\n",
+  "why": "a line-gate drag rebuilds the gate tree on every mouse move"
+ },
+ {
+  "tests": [
+   "tests/test_dialog_tooltips.py::test_dialog_controls_have_hover_help[ui_axis_config]"
+  ],
+  "file": "src/openflo/ui_axis_config.py",
+  "find": "            auto_tip(self.param_entry,\n                     \"This scale has no parameter to set.\")\n",
+  "replace": "",
+  "why": "the disabled parameter box loses its tooltip"
+ },
+ {
+  "tests": [
+   "tests/test_cytonorm_qc_undefined.py::test_qc_means_keep_a_measurable_channel_visible"
+  ],
+  "file": "src/openflo/pipeline.py",
+  "find": "            before = float(np.nanmean([v['before'] for v in qc.values()]))",
+  "replace": "            before = float(np.mean([v['before'] for v in qc.values()]))",
+  "why": "one unmeasurable channel turns the mean into NaN"
+ },
+ {
+  "tests": [
+   "tests/test_cytonorm_qc_undefined.py::test_qc_means_are_nan_when_nothing_was_measurable"
+  ],
+  "file": "src/openflo/pipeline.py",
+  "find": "        skipped = sum(1 for v in qc.values() if not np.isfinite(v['before']))",
+  "replace": "        skipped = sum(1 for v in qc.values() if np.isfinite(v['before']))",
+  "why": "the count of unmeasurable channels counts the measurable ones"
+ },
+ {
+  "tests": [
+   "tests/test_editor_mixins.py::test_editor_module_imports_standalone[openflo.editor_export]"
+  ],
+  "file": "src/openflo/editor_export.py",
+  "find": "from .editor_base import EditorMixin\n",
+  "replace": "",
+  "why": "the module forgets to import a name it uses (its base class)"
+ },
+ {
+  "tests": [
+   "tests/test_editor_mixins.py::test_editor_module_imports_standalone[openflo.editor_load]"
+  ],
+  "file": "src/openflo/editor_load.py",
+  "find": "from .editor_base import EditorMixin\n",
+  "replace": "",
+  "why": "the module forgets to import a name it uses (its base class)"
+ },
+ {
+  "tests": [
+   "tests/test_capabilities.py::test_quick_probe_does_not_import_heavy_engines"
+  ],
+  "file": "src/openflo/capabilities.py",
+  "find": "    if not load:\n        return None\n    return check_engines",
+  "replace": "    if not load:\n        __import__(module)\n        return None\n    return check_engines",
+  "why": "the quick probe imports each engine in OpenFlo's own process, as the freeze did"
+ },
+ {
+  "tests": [
+   "tests/test_fcs_speed.py::test_the_flowio_hook_is_still_there"
+  ],
+  "file": "src/openflo/fcs_read.py",
+  "find": "    def _FlowData__parse_int_data(self,",
+  "replace": "    def _FlowData__parse_int_data_renamed(self,",
+  "why": "the fast reader no longer overrides the FlowIO method"
+ },
+ {
+  "tests": [
+   "tests/test_knn_threads.py::test_a_different_tree_breaks_ties_differently"
+  ],
+  "file": "tests/test_knn_threads.py",
+  "find": "    return np.round(X, decimals)\n",
+  "replace": "    return X\n",
+  "why": "the generated data has no tied distances left to break"
+ },
+ {
+  "tests": [
+   "tests/test_python_readiness.py::test_drag_and_drop_stays_on_when_tkdnd_loads"
+  ],
+  "file": "src/openflo/gui.py",
+  "find": "            root.TkdndVersion = load(root)  # type: ignore[attr-defined]",
+  "replace": "            raise RuntimeError('tkdnd refused')",
+  "why": "loading tkdnd fails, so drag and drop is turned off"
+ },
+ {
+  "tests": [
+   "tests/test_som_kernel.py::test_epoch_cases_tell_the_choices_apart"
+  ],
+  "file": "tests/test_som_kernel.py",
+  "find": "        bmu = int(np.argmin(((W - x) ** 2).sum(1)))",
+  "replace": "        d = ((W - x) ** 2).sum(1); bmu = len(d) - 1 - int(np.argmin(d[::-1]))",
+  "why": "the reference loop picks the last of tied nodes, the same as the variant"
+ },
+ {
+  "tests": [
+   "tests/test_som_kernel.py::test_left_to_right_sum_would_not_match"
+  ],
+  "file": "tests/test_som_kernel.py",
+  "find": "    for d in range(8, 301):",
+  "replace": "    for d in range(8, 12):",
+  "why": "too few vectors to show the last-bit difference"
+ },
+ {
+  "tests": [
+   "tests/test_window_fit.py::test_dpi_awareness_is_not_attempted_off_windows"
+  ],
+  "file": "src/openflo/gui.py",
+  "find": "        if sys.platform != 'win32':\n            return None\n",
+  "replace": "",
+  "why": "DPI awareness is attempted on every platform"
+ },
+ {
+  "tests": [
+   "tests/test_window_fit.py::test_the_editors_size_is_kept_within_the_screen"
+  ],
+  "file": "src/openflo/gui.py",
+  "find": "self.winfo_screenwidth() - 16, self.winfo_screenheight() - 72",
+  "replace": "10**6, 10**6",
+  "why": "the editor ignores the screen size"
+ },
+ {
+  "tests": [
+   "tests/test_plot_cache.py::test_status_set_after_a_rebuild_survives_idle_running_first"
+  ],
+  "file": "src/openflo/editor_tree.py",
+  "find": "                self._tree_select_echo_after = self.after(\n                    500, self._clear_tree_select_echo)",
+  "replace": "                self._tree_select_echo_after = self.after_idle(\n                    self._clear_tree_select_echo)",
+  "why": "the echo mark is cleared at idle again, before a late re-select event"
+ },
+ {
+  "tests": [
+   "tests/test_tk_main_thread.py::test_a_background_collection_of_a_dropped_root_is_harmless_with_protection",
+   "tests/test_tk_main_thread.py::test_the_suite_holds_each_root_until_the_main_thread_releases_it",
+   "tests/test_tk_main_thread.py::test_release_collects_the_cycles_that_still_hold_a_dropped_root"
+  ],
+  "file": "tests/tk_main_thread.py",
+  "find": "                _interpreters.append((interp, weakref.ref(self)))",
+  "replace": "                pass",
+  "why": "the suite no longer holds a new root's interpreter, so another thread can free it"
+ },
+ {
+  "tests": [
+   "tests/test_tk_main_thread.py::test_release_collects_the_cycles_that_still_hold_a_dropped_root"
+  ],
+  "file": "tests/tk_main_thread.py",
+  "find": "    gc.collect()\n    still_used = []",
+  "replace": "    still_used = []",
+  "why": "release no longer breaks the cycles that still hold a dropped root"
+ },
+ {
+  "tests": [
+   "tests/test_tk_main_thread.py::test_a_background_collection_of_a_dropped_root_aborts_without_protection"
+  ],
+  "file": "tests/test_tk_main_thread.py",
+  "find": "    gc.disable()          # only the background thread's collection may run",
+  "replace": "    gc.disable()          # only the background thread's collection may run\n    from tests import tk_main_thread as _held; _held.install()",
+  "why": "the control's bare run is protected too, so the crash it must reproduce no longer happens"
+ },
+ {
+  "tests": [
+   "tests/test_tk_main_thread.py::test_release_frees_a_destroyed_window_whose_callbacks_tcl_still_holds"
+  ],
+  "file": "tests/tk_main_thread.py",
+  "find": " or name.startswith('mpl_blit_')",
+  "replace": "",
+  "why": "matplotlib's blit command is left registered, so it holds a destroyed window's interpreter"
+ },
+ {
+  "tests": [
+   "tests/test_tk_main_thread.py::test_a_variable_freed_on_another_thread_leaves_its_tcl_clean_up_to_the_main_thread"
+  ],
+  "file": "tests/tk_main_thread.py",
+  "find": "    tkinter.Variable.__del__ = _finalise_on_main_thread(    # type: ignore[method-assign]\n        tkinter.Variable.__del__)\n",
+  "replace": "",
+  "why": "a Tk variable freed on a background thread calls Tcl there again instead of leaving it to the main thread"
+ },
+ {
+  "tests": [
+   "tests/test_tk_main_thread.py::test_leftover_windows_are_destroyed_and_freed_when_the_module_ends"
+  ],
+  "file": "tests/tk_main_thread.py",
+  "find": "                root.destroy()\n            except TclError:\n                pass                    # already destroyed",
+  "replace": "                pass\n            except TclError:\n                pass",
+  "why": "windows a test left open are no longer destroyed when the module ends"
+ },
+ {
+  "tests": [
+   "tests/test_batch_h_consistent_dialogs.py::test_no_message_box_shows_a_raw_exception"
+  ],
+  "file": "src/openflo/editor_session.py",
+  "find": "messagebox.showerror(\"Can't open session\", str(exc), parent=self)",
+  "replace": "messagebox.showerror(\"Can't open session\", f\"{type(exc).__name__}: {exc}\", parent=self)",
+  "why": "a message box shows the raw exception type and text again"
+ },
+ {
+  "tests": [
+   "tests/test_batch_h_consistent_dialogs.py::test_side_panel_buttons_say_what_they_do"
+  ],
+  "file": "src/openflo/gui.py",
+  "find": "(\"Delete gate\", self._clear_selected_gate,",
+  "replace": "(\"Clear\", self._clear_selected_gate,",
+  "why": "the side panel's Delete gate button goes back to the vague label Clear"
+ },
+ {
+  "tests": [
+   "tests/test_batch_h_consistent_dialogs.py::test_the_wording_check_finds_each_old_label"
+  ],
+  "file": "tests/test_batch_h_consistent_dialogs.py",
+  "find": "    (re.compile(r'\\.\\.\\.'), \"three dots instead of an ellipsis\"),\n",
+  "replace": "",
+  "why": "the wording check no longer flags three dots used instead of an ellipsis"
+ },
+ {
+  "tests": [
+   "tests/test_batch_i_menus_fonts_colours.py::test_contrast_is_computed_as_wcag_does"
+  ],
+  "file": "tests/test_batch_i_menus_fonts_colours.py",
+  "find": "    return (la + 0.05) / (lb + 0.05)",
+  "replace": "    return la / (lb + 0.05)",
+  "why": "the contrast ratio drops the flare term WCAG adds to the lighter colour"
+ },
+ {
+  "tests": [
+   "tests/test_batch_i_menus_fonts_colours.py::test_every_menu_item_has_status_bar_help"
+  ],
+  "file": "src/openflo/gui.py",
+  "find": "        \"Find sample or gate\": \"Jump to the Find box above the samples and gates.\",\n",
+  "replace": "",
+  "why": "a menu item loses its status-bar help text"
+ },
+ {
+  "tests": [
+   "tests/test_batch_i_menus_fonts_colours.py::test_menus_show_their_shortcuts_and_each_is_bound"
+  ],
+  "file": "src/openflo/editor_menu.py",
+  "find": "command=self._focus_find,\n                              accelerator=accel(\"Ctrl+F\"))",
+  "replace": "command=self._focus_find)",
+  "why": "the Find menu item no longer shows its Ctrl+F shortcut"
+ },
+ {
+  "tests": [
+   "tests/test_batch_i_menus_fonts_colours.py::test_no_info_box_says_a_file_was_saved"
+  ],
+  "file": "src/openflo/editor_export.py",
+  "find": "            self.status_var.set(f\"Saved plot \u2192 {os.path.basename(path)}\")",
+  "replace": "            messagebox.showinfo(\"Export plot image\", f\"Saved:\\n{path}\", parent=self)",
+  "why": "saving a plot image pops up a Saved info box again instead of a status-bar note"
+ },
+ {
+  "tests": [
+   "tests/test_batch_i_menus_fonts_colours.py::test_no_widget_colour_is_hard_coded"
+  ],
+  "file": "src/openflo/editor_analysis.py",
+  "find": "ttk.Label(dlg, text=f\"Phenotype names for '{name}':\",",
+  "replace": "ttk.Label(dlg, text=f\"Phenotype names for '{name}':\", foreground='#1f4e79',",
+  "why": "a label gets a hard-coded foreground colour instead of the theme palette"
+ },
+ {
+  "tests": [
+   "tests/test_batch_i_menus_fonts_colours.py::test_no_window_asks_for_a_font_tuple"
+  ],
+  "file": "src/openflo/editor_help.py",
+  "find": "text=f\"OpenFlo {openflo_version()}\",\n                  font='OpenFloTitle')",
+  "replace": "text=f\"OpenFlo {openflo_version()}\",\n                  font=('Segoe UI', 14, 'bold'))",
+  "why": "the About title asks for a raw font tuple instead of a named font"
+ },
+ {
+  "tests": [
+   "tests/test_batch_i_menus_fonts_colours.py::test_the_check_finds_a_font_tuple"
+  ],
+  "file": "tests/test_batch_i_menus_fonts_colours.py",
+  "find": "        if (isinstance(node, ast.Tuple) and len(node.elts) >= 2\n",
+  "replace": "        if (isinstance(node, ast.Tuple) and len(node.elts) == 2\n",
+  "why": "the font check misses a font tuple that also names a style such as bold"
+ },
+ {
+  "tests": [
+   "tests/test_batch_i_menus_fonts_colours.py::test_the_check_finds_a_hard_coded_colour"
+  ],
+  "file": "tests/test_batch_i_menus_fonts_colours.py",
+  "find": "_COLOUR_KW = {'foreground', 'background', ",
+  "replace": "_COLOUR_KW = {'background', ",
+  "why": "the colour check no longer looks at the foreground option"
+ },
+ {
+  "tests": [
+   "tests/test_batch_i_menus_fonts_colours.py::test_the_check_finds_a_saved_box"
+  ],
+  "file": "tests/test_batch_i_menus_fonts_colours.py",
+  "find": "            if isinstance(v, ast.Constant):\n                return v.value\n            return ''\n",
+  "replace": "            return ''\n",
+  "why": "the saved-box check no longer reads the literal start of an f-string message"
+ },
+ {
+  "tests": [
+   "tests/test_batch_i_menus_fonts_colours.py::test_tools_is_grouped_and_exports_and_the_record_moved"
+  ],
+  "file": "src/openflo/editor_menu.py",
+  "find": "                toolm.add_command(label=lbl, command=cmd)\n            toolm.add_separator()\n            for lbl, cmd in ((\"Normalize",
+  "replace": "                toolm.add_command(label=lbl, command=cmd)\n            for lbl, cmd in ((\"Normalize",
+  "why": "the Tools menu loses a group separator, leaving one group of eight items"
+ },
+ {
+  "tests": [
+   "tests/test_batch_k_specialist.py::test_menus_offer_the_new_windows"
+  ],
+  "file": "src/openflo/editor_menu.py",
+  "find": "                             (\"Bead tracking\u2026\", self._open_bead_tracking),\n",
+  "replace": "",
+  "why": "the Tools menu no longer offers the bead tracking window"
+ },
+ {
+  "tests": [
+   "tests/test_ci_macos_job.py::test_the_gate_check_catches_an_ungated_macos_job"
+  ],
+  "file": "tests/test_ci_macos_job.py",
+  "find": "    m = re.search(r'^    if:\\s*(.+)$', block, re.M)\n    return bool(m) and \\\n        \"github.repository == 'ChironTheCentaur/openflo-public'\" in m.group(1)",
+  "replace": "    m = re.search(r'^    if:\\s*(.+)$', block, re.M)\n    return not m or \\\n        \"github.repository == 'ChironTheCentaur/openflo-public'\" in m.group(1)",
+  "why": "the gate check treats a macOS job with no if: condition as gated to the mirror"
+ },
+ {
+  "tests": [
+   "tests/test_cluster_recovery_highdim.py::test_random_labels_fail_the_recovery_thresholds"
+  ],
+  "file": "tests/test_cluster_recovery_highdim.py",
+  "find": "        tp = int((truth & pred).sum())",
+  "replace": "        tp = int((truth | pred).sum())",
+  "why": "the best-match score counts the union of population and cluster as true positives, so any overlap scores as a match"
+ },
+ {
+  "tests": [
+   "tests/test_public_links.py::test_nothing_that_ships_links_to_the_private_repository"
+  ],
+  "file": "src/openflo/update.py",
+  "find": "ISSUES_URL = f\"{PUBLIC_URL}/issues\"",
+  "replace": "ISSUES_URL = \"https://github.com/ChironTheCentaur/openflo/issues\"",
+  "why": "Report a problem links to the private development repository again"
+ },
+ {
+  "tests": [
+   "tests/test_cluster_recovery_highdim.py::test_the_sample_is_built_as_designed"
+  ],
+  "file": "tests/test_cluster_recovery_highdim.py",
+  "find": "        pheno[pop, marker] = level\n",
+  "replace": "        pheno[pop, marker] = 1.0\n",
+  "why": "the intermediate-expression populations are built fully positive instead"
+ },
+ {
+  "tests": [
+   "tests/test_public_links.py::test_the_detector_tells_private_from_public"
+  ],
+  "file": "tests/test_public_links.py",
+  "find": "(?![-\\w])', re.I)",
+  "replace": "/', re.I)",
+  "why": "the detector only catches private links followed by a slash, missing the bare and .git forms"
+ },
+ {
+  "tests": [
+   "tests/test_setup_installer.py::test_bat_checked_out_with_crlf"
+  ],
+  "file": ".gitattributes",
+  "find": "*.bat text eol=crlf\n",
+  "replace": "",
+  "why": "Windows batch files are no longer checked out with CRLF line endings"
+ },
+ {
+  "tests": [
+   "tests/test_typecheck_config.py::test_the_release_gate_check_rejects_a_typecheck_only_build"
+  ],
+  "file": "tests/test_typecheck_config.py",
+  "find": "    m = re.search(r'^\\s*needs:\\s*(.+)$', build, re.M)",
+  "replace": "    m = re.search(r'^\\s*needs:\\s*\\[(.+)\\]$', build, re.M)",
+  "why": "the release gate check reads only the list form of needs and misses a plain needs line"
+ },
+ {
+  "tests": [
+   "tests/test_tk_main_thread.py::test_a_test_that_made_no_window_pays_for_no_collection"
+  ],
+  "file": "tests/tk_main_thread.py",
+  "find": "    if not _deferred and not (_interpreters and (_made or force)):",
+  "replace": "    if not _interpreters and not _deferred:",
+  "why": "release collects after every test again while any window is held"
+ }
+]

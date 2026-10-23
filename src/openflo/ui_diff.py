@@ -1,0 +1,349 @@
+"""Differential-abundance + compare-all result windows.
+
+Self-contained Tk window(s) extracted from gui.py (see ui_*.py convention).
+"""
+from __future__ import annotations
+
+import tkinter as tk
+from tkinter import filedialog, ttk
+
+from .errors import note
+from .export_stamp import savefig_metadata
+from .theme import (
+    _dialog_dark_on,
+    _theme_figure_dark,
+    plot_ink,
+)
+from .tool_window import figure_panel
+from .ui_notice import report_saved
+from .ui_tips import auto_tip
+
+
+def _audit_export(win, action, path, samples, **details):
+    """Record a written export in the editor's audit log (the window's
+    parent is the Frequencies window, which holds the editor), with the
+    samples the results come from (see fixes.stale_exports)."""
+    editor = getattr(win.master, 'editor', None)
+    if editor is None:
+        return
+    try:
+        editor._audit(action, path=path, samples=list(samples or []),
+                      **details)
+    except Exception as exc:
+        note("recording the export in the audit trail", exc)
+
+
+class CompareAllWindow(tk.Toplevel):
+    """All-population group comparison: a sortable results table (per-group
+    means, log2 fold-change, BH-adjusted p, stars) beside a volcano plot
+    (log2FC vs −log10 adjusted-p, significant populations highlighted). One
+    click compares every population at once; export the full table or the
+    volcano figure. The volcano needs the two-group case (log2FC); with >2
+    groups the table still shows the omnibus Kruskal-Wallis / ANOVA result."""
+
+    def __init__(self, parent, results, groups, metric, samples=None):
+        super().__init__(parent)
+        self._sample_names = list(samples or [])
+        self.title("Compare all populations")
+        self.geometry("1040x620")
+        self._results = results
+        self._groups = groups
+        self._metric = metric
+        self._two = len(groups) == 2
+        from .stats import volcano_data
+        self._volcano = volcano_data(results)
+
+        head = (f"{metric} across {len(groups)} groups "
+                f"({', '.join(groups)}) — {len(results)} populations, "
+                f"BH-adjusted.")
+        if self._two:
+            head += f"  log2FC = log2(mean {groups[1]} / mean {groups[0]})."
+        ttk.Label(self, padding=6, font='OpenFloHeading',
+                  text=head).pack(fill='x', side='top')
+        # A population absent from one group has log2FC ±inf: listed in the
+        # table, but a log axis has no place for it, so say where it went.
+        # A test that can't reach 0.05 at these group sizes says so: its
+        # "not significant" is about n, not the data (stats.smallest_p).
+        weak = [r for r in results if r.get('underpowered')]
+        if weak:
+            mp = max(r['min_p'] for r in weak)
+            ttk.Label(
+                self, style='Muted.TLabel', padding=(6, 0), wraplength=1000,
+                text=(f"{weak[0]['test']} can't give p below {mp:.3g} with "
+                      "these group sizes, so no population can come out "
+                      "significant at 0.05. Use the t-test, add samples, or "
+                      "pair by donor.")).pack(fill='x', side='top')
+        absent = [r['feature'] for r in results
+                  if self._two and r.get('effect') is not None
+                  and abs(r['effect']) == float('inf')]
+        if absent:
+            ttk.Label(
+                self, style='Muted.TLabel', padding=(6, 0), wraplength=1000,
+                text=(f"{len(absent)} population(s) at 0 in one group "
+                      f"(log2FC ±inf) are in the table but not on the "
+                      f"volcano: {', '.join(map(str, absent[:8]))}"
+                      + (' …' if len(absent) > 8 else ''))
+            ).pack(fill='x', side='top')
+        bar = ttk.Frame(self)
+        bar.pack(fill='x')
+        _dc = ttk.Button(bar, text="Results CSV…", command=self._export_csv)
+        _dc.pack(side='right', padx=6, pady=4)
+        auto_tip(_dc,
+                 "Per-population effect size, p-value and corrected q-value. "
+                 "Report the q-value, not the raw p: every population was "
+                 "tested, so the p-values need the correction applied here.")
+        _df = ttk.Button(bar, text="Volcano figure…",
+                         command=self._export_figure)
+        _df.pack(side='right', pady=4)
+        auto_tip(_df,
+                 "Volcano plot -- effect size against significance, so large "
+                 "AND reliable differences separate from the rest.")
+
+        paned = ttk.PanedWindow(self, orient='horizontal')
+        paned.pack(fill='both', expand=True)
+
+        # ── left: results table ──
+        tbl = ttk.Frame(paned)
+        paned.add(tbl, weight=1)
+        if self._two:
+            cols = ('pop', 'a', 'b', 'log2fc', 'p', 'padj', 'sig')
+            heads = {'pop': 'Population', 'a': 'mean ' + groups[0],
+                     'b': 'mean ' + groups[1], 'log2fc': 'log2FC',
+                     'p': 'p', 'padj': 'p(adj)', 'sig': ''}
+            widths = (210, 90, 90, 70, 70, 70, 36)
+        else:
+            cols = ('pop', 'p', 'padj', 'sig')
+            heads = {'pop': 'Population', 'p': 'p (omnibus)',
+                     'padj': 'p(adj)', 'sig': ''}
+            widths = (320, 100, 90, 40)
+        tv = ttk.Treeview(tbl, columns=cols, show='headings')
+        for c, w in zip(cols, widths, strict=True):
+            tv.heading(c, text=heads[c])
+            tv.column(c, width=w, anchor='w', stretch=(c == 'pop'))
+        tv.pack(fill='both', expand=True)
+
+        def _f(x, fmt):
+            return fmt.format(x) if x is not None and x == x else 'n/a'
+        for r in results:
+            g = r['groups']
+            if self._two:
+                # A group none of whose samples has the population is
+                # MISSING there -- not a mean of 0, not an unknown value.
+                def _mean(grp, g=g):
+                    if not g.get(grp, {}).get('n'):
+                        return 'missing'
+                    return _f(g[grp].get('mean'), '{:.3g}')
+                tv.insert('', 'end', values=(
+                    r['feature'], _mean(groups[0]), _mean(groups[1]),
+                    _f(r['effect'], '{:+.2f}'), _f(r['p'], '{:.2g}'),
+                    _f(r['p_adj'], '{:.2g}'), r['stars']))
+            else:
+                tv.insert('', 'end', values=(
+                    r['feature'], _f(r['p'], '{:.2g}'),
+                    _f(r['p_adj'], '{:.2g}'), r['stars']))
+
+        # ── right: volcano ──
+        right = ttk.Frame(paned)
+        paned.add(right, weight=1)
+        # dark=False: _draw_volcano themes the figure itself.
+        _frame, self._fig, self._canvas = figure_panel(
+            right, figsize=(5.2, 4.8), dpi=100, dark=False)
+        self._draw_volcano()
+
+    def _draw_volcano(self):
+        fig = self._fig
+        fig.clear()
+        ax = fig.add_subplot(1, 1, 1)
+        if not self._two or not self._volcano:
+            ax.text(0.5, 0.5, "Volcano needs exactly 2 groups\n"
+                    "(log2 fold-change).", ha='center', va='center',
+                    fontsize=9, color=plot_ink(self), transform=ax.transAxes)
+            ax.set_axis_off()
+            if _dialog_dark_on(self):
+                _theme_figure_dark(fig)
+            self._canvas.draw()
+            return
+        import numpy as _np
+        xs = _np.array([p['x'] for p in self._volcano])
+        ys = _np.array([p['y'] for p in self._volcano])
+        sig = _np.array([p['significant'] for p in self._volcano])
+        ax.scatter(xs[~sig], ys[~sig], s=18, c='#bbb', linewidths=0,
+                   label='ns')
+        ax.scatter(xs[sig], ys[sig], s=22, c='#d62728', linewidths=0,
+                   label='significant')
+        ax.axhline(-_np.log10(0.05), color='#888', ls='--', lw=.7)
+        for xc in (-1.0, 1.0):
+            ax.axvline(xc, color='#888', ls=':', lw=.7)
+        # label the most significant populations
+        for p in sorted(self._volcano, key=lambda d: -d['y'])[:6]:
+            if p['significant']:
+                ax.annotate(p['feature'], (p['x'], p['y']), fontsize=7,
+                            xytext=(3, 3), textcoords='offset points')
+        ax.set_xlabel(f"log2 fold-change ({self._groups[1]} / {self._groups[0]})",
+                      fontsize=9)
+        ax.set_ylabel("−log10 adjusted p", fontsize=9)
+        ax.set_title("Volcano", fontsize=9)
+        ax.legend(fontsize=7, loc='upper right')
+        try:
+            fig.tight_layout()
+        except Exception:  # noqa: BLE001 - tight_layout can fail on crowded figures
+            pass
+        if _dialog_dark_on(self):
+            _theme_figure_dark(fig)
+        self._canvas.draw()
+
+    def _flat_rows(self):
+        out = []
+        for r in self._results:
+            row = {'population': r['feature'], 'test': r['test'],
+                   'log2FC': r['effect'], 'p': r['p'], 'p_adj': r['p_adj'],
+                   'sig': r['stars'], 'min_possible_p': r.get('min_p'),
+                   'underpowered': r.get('underpowered')}
+            if r.get('n_pairs') is not None:
+                row['n_pairs'] = r['n_pairs']
+            for gname, gs in r['groups'].items():
+                row[f'mean_{gname}'] = gs.get('mean')
+                row[f'n_{gname}'] = gs.get('n')
+            out.append(row)
+        return out
+
+    def _export_csv(self):
+        import pandas as pd
+        path = filedialog.asksaveasfilename(
+            parent=self, defaultextension='.csv',
+            initialfile='compare_all_populations.csv',
+            filetypes=[('CSV', '*.csv'), ('All files', '*.*')])
+        if path:
+            pd.DataFrame(self._flat_rows()).to_csv(path, index=False)
+            _audit_export(self, 'compare_all.export', path,
+                          self._sample_names, kind='table')
+            report_saved(self, path, "Exported")
+
+    def _export_figure(self):
+        path = filedialog.asksaveasfilename(
+            parent=self, defaultextension='.png', initialfile='volcano.png',
+            filetypes=[('PNG', '*.png'), ('PDF', '*.pdf'), ('SVG', '*.svg'),
+                       ('All files', '*.*')])
+        if path:
+            import matplotlib
+
+            from .theme import figure_rc
+            with matplotlib.rc_context(figure_rc()):
+                self._fig.savefig(path, dpi=200, bbox_inches='tight',
+                                  metadata=savefig_metadata(path))
+            _audit_export(self, 'compare_all.export', path,
+                          self._sample_names, kind='figure')
+            report_saved(self, path, "Saved")
+
+
+class DiffAbundanceWindow(tk.Toplevel):
+    """Results table for the negative-binomial differential-abundance test
+    (log2FC of group-B vs group-A proportion per population, with adjusted
+    p-values and significance stars), with CSV export."""
+
+    def __init__(self, parent, rows, groups, samples=None):
+        super().__init__(parent)
+        self._sample_names = list(samples or [])
+        self.title("Differential abundance (NB-GLM)")
+        self.geometry("780x460")
+        self._rows = rows
+        from .stats import p_to_stars
+        ttk.Label(self, padding=6,
+                  text=(f"{groups[1]} vs {groups[0]} — negative-binomial GLM on "
+                        f"counts (library-size offset), each population's own "
+                        f"dispersion. log2FC = log2({groups[1]} / {groups[0]}). "
+                        f"{len(rows)} populations."
+                        + (f" Paired: the donor is a term in the model "
+                           f"({rows[0]['n_blocks']} donors)."
+                           if rows and rows[0].get('n_blocks') else '')),
+                  wraplength=760, justify='left',
+                  font='OpenFloHeading').pack(fill='x', side='top')
+        bar = ttk.Frame(self)
+        bar.pack(fill='x')
+        _ec = ttk.Button(bar, text="Export CSV…", command=self._export)
+        _ec.pack(side='right', padx=6, pady=4)
+        auto_tip(_ec,
+                 "Save this comparison table, including the per-group n that "
+                 "the significance markers depend on.")
+        # `n` per group is shown because the significance marker is otherwise
+        # unreadable: how far a p-value can be trusted depends on how many
+        # samples each arm has.
+        # `missing`: samples that do not have the population. They are left
+        # out of its fit (never counted as 0 events); n per group is what was
+        # actually compared.
+        cols = ('pop', 'log2fc', 'pa', 'pb', 'na', 'nb', 'miss', 'p', 'padj',
+                'sig')
+        heads = {'pop': 'Population', 'log2fc': 'log2FC', 'pa': '%' + groups[0],
+                 'pb': '%' + groups[1], 'na': 'n' + groups[0],
+                 'nb': 'n' + groups[1], 'miss': 'missing', 'p': 'p',
+                 'padj': 'p(adj)', 'sig': ''}
+        widths = (280, 70, 70, 70, 45, 45, 55, 80, 80, 40)
+        tv = ttk.Treeview(self, columns=cols, show='headings')
+        for c, w in zip(cols, widths, strict=True):
+            tv.heading(c, text=heads[c])
+            tv.column(c, width=w, anchor='w', stretch=(c == 'pop'))
+        tv.pack(fill='both', expand=True)
+        # Say it outright when the design cannot support the p-values, rather
+        # than leaving the reader to notice n=1 in a column. Each population's
+        # dispersion is measured between its own samples, so one sample per
+        # group leaves nothing to measure it with: no p-value at all (the
+        # dispersion once shared across populations gave one anyway, and
+        # with it 24-84 % false positives).
+        # Only populations present in both groups say anything about the
+        # design; one missing from a whole group is reported below instead.
+        _ns = [min(int(r.get('n_a', 0) or 0), int(r.get('n_b', 0) or 0))
+               for r in rows
+               if int(r.get('n_a', 0) or 0) and int(r.get('n_b', 0) or 0)]
+        _no_p = bool(rows) and all(r['p'] != r['p'] for r in rows)
+        if _ns and (min(_ns) < 3 or _no_p):
+            msg = (("⚠ One sample per group: there is no replicate to "
+                    "measure between-sample spread with, so there are no "
+                    "p-values. The fold changes describe these samples "
+                    "only — exploratory, not evidence of a difference.")
+                   if _no_p else
+                   (f"⚠ Only {min(_ns)} sample(s) in the smaller group. Each "
+                    "p-value rests on a spread measured from very few "
+                    "samples, so only large differences can reach "
+                    "significance and a non-significant result is not "
+                    "evidence of no difference — treat this as exploratory."))
+            ttk.Label(
+                self, style='Muted.TLabel', wraplength=760, justify='left',
+                padding=(8, 4), text=msg).pack(fill='x', side='bottom')
+        _partial = [r['cluster'] for r in rows if r.get('n_missing')]
+        if _partial:
+            _gone = [r['cluster'] for r in rows
+                     if r.get('n_missing') and not (r.get('n_a') and r.get('n_b'))]
+            ttk.Label(
+                self, style='Muted.TLabel', wraplength=760, justify='left',
+                padding=(8, 4),
+                text=(f"{len(_partial)} population(s) are missing from some "
+                      "samples (gate not drawn there). Each was fitted on the "
+                      "samples that have it — a missing population is not 0 "
+                      "events." + (f" Not testable, absent from a whole group: "
+                                   f"{', '.join(map(str, _gone))}."
+                                   if _gone else ''))
+            ).pack(fill='x', side='bottom')
+
+        def _pct(v):
+            return f"{v * 100:.2f}" if v == v else 'missing'
+        for r in rows:
+            lfc = r['log2fc']
+            tv.insert('', 'end', values=(
+                r['cluster'], f"{lfc:+.2f}" if lfc == lfc else 'n/a',
+                _pct(r['prop_a']), _pct(r['prop_b']),
+                r.get('n_a', ''), r.get('n_b', ''), r.get('n_missing', 0) or '',
+                f"{r['p']:.2g}" if r['p'] == r['p'] else 'n/a',
+                f"{r['p_adj']:.2g}" if r['p_adj'] == r['p_adj'] else 'n/a',
+                p_to_stars(r['p_adj'])))
+
+    def _export(self):
+        import pandas as pd
+        path = filedialog.asksaveasfilename(
+            parent=self, defaultextension='.csv',
+            initialfile='differential_abundance.csv',
+            filetypes=[('CSV', '*.csv'), ('All files', '*.*')])
+        if path:
+            pd.DataFrame(self._rows).to_csv(path, index=False)
+            _audit_export(self, 'diff_abundance.export', path,
+                          self._sample_names)
+            report_saved(self, path, "Exported")
