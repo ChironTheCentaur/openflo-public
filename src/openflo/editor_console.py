@@ -9,12 +9,10 @@ satisfied without runtime cost.
 from __future__ import annotations
 
 import queue
+import tkinter as tk  # runtime import: the except clauses below name tk.TclError
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
-
-if TYPE_CHECKING:
-    import tkinter as tk
 
 
 class ConsoleLogMixin:

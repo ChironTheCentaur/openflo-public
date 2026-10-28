@@ -18,8 +18,6 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from .robust import MAD_TO_SD
-
 __all__ = ["singlet_gate", "fmo_threshold", "fmo_threshold_gate"]
 
 
@@ -37,10 +35,12 @@ def singlet_gate(
 
     For single cells the area channel (e.g. ``FSC-A``) is proportional to the
     height channel (``FSC-H``); doublets and aggregates carry more area per unit
-    height and fall *off* that diagonal. We take the robust ratio
-    ``r = height / area``, keep a band around its median
-    (``median ± k · 1.4826 · MAD``), and express that band as a quadrilateral in
-    ``(area, height)`` coordinates clipped to the populated height range.
+    height and fall *off* that diagonal. The band is the one
+    :func:`openflo.pipeline.auto_singlet_gate` fits: the robust ratio
+    ``r = area / height``, kept within ``median ± k · MAD_TO_SD · MAD``, as a
+    quadrilateral in ``(area, height)`` coordinates clipped to the populated
+    height range. Both routes share it, so a gate added from the Edit menu is
+    the same gate the auto-gate dialog proposes.
 
     Args:
         df: event table containing the ``area`` and ``height`` columns.
@@ -69,51 +69,18 @@ def singlet_gate(
     if height not in df.columns:
         raise KeyError(f"height channel {height!r} not in df columns")
 
-    a = np.asarray(df[area].to_numpy(), dtype=float)
-    h = np.asarray(df[height].to_numpy(), dtype=float)
-    finite = np.isfinite(a) & np.isfinite(h) & (a > 0)
-    a, h = a[finite], h[finite]
-    if a.size < 2:
-        raise ValueError("singlet_gate: not enough finite (area, height) events")
-
-    ratio = h / a  # height / area; ~constant for proportional singlets
-    ratio = ratio[np.isfinite(ratio)]
-    if ratio.size < 2:
-        raise ValueError("singlet_gate: ratio undefined")
-
-    med = float(np.median(ratio))
-    if not np.isfinite(med) or med <= 0:
-        raise ValueError("singlet_gate: non-positive median ratio")
-
-    mad = float(np.median(np.abs(ratio - med)))
-    sigma = MAD_TO_SD * mad if mad > 0 else float(np.std(ratio))
-    if sigma <= 0:
-        raise ValueError("singlet_gate: zero spread in ratio")
-
-    r_lo = max(med - k * sigma, 1e-12)
-    r_hi = med + k * sigma
-
-    h_lo, h_hi = (float(v) for v in np.percentile(h, list(height_pct)))
-    if h_hi <= h_lo:
-        raise ValueError("singlet_gate: degenerate height range")
-
-    # The band lies between the two rays  height = r_lo * area  and
-    # height = r_hi * area, i.e.  area = height / r.  Clip to the populated
-    # height range to form a quadrilateral (x = area, y = height). Wind the
-    # vertices so the polygon is non-self-intersecting.
-    verts = [
-        [h_lo / r_hi, h_lo],
-        [h_hi / r_hi, h_hi],
-        [h_hi / r_lo, h_hi],
-        [h_lo / r_lo, h_lo],
-    ]
-    verts = [[float(x), float(y)] for x, y in verts]
+    from .pipeline import auto_singlet_gate
+    verts, _quality = auto_singlet_gate(
+        df[area].to_numpy(), df[height].to_numpy(), k=k, h_pct=height_pct)
+    if not verts:
+        raise ValueError("singlet_gate: ratio band undefined "
+                         "(too little spread or data)")
 
     return {
         "kind": "polygon",
         "x_channel": area,
         "y_channel": height,
-        "vertices": verts,
+        "vertices": [[float(x), float(y)] for x, y in verts],
         "parent_id": parent_id,
         "color": color,
         "enabled": True,

@@ -60,6 +60,11 @@ jobs:
       - name: Lint
         run: ruff check .
 
+      # docs/best-practices.md: fails when a change adds a violation of a
+      # mechanically checked rule (stdlib only, a few seconds).
+      - name: Best practices
+        run: python scripts/best_practices.py
+
   test:
     name: ${{ matrix.os }} / py${{ matrix.python }}
     # Full matrix only at major steps; see the header.

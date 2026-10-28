@@ -364,6 +364,15 @@ def _point_at(widget):
     widget.update()
 
 
+def _show_regardless_of_pointer(tip):
+    """Show `tip` as if pointed at, without moving the real pointer. For tests
+    about what happens to a shown tooltip, not about detecting the pointer:
+    on Windows the parallel test workers share one screen, and another
+    worker's window opening over the button made the pointer check fail."""
+    tip._pointer_over_widget = lambda: True
+    tip._show()
+
+
 def test_a_tooltip_shows_while_pointed_at(root):
     top, btn, tip = _tooltip(root)
     _point_at(btn)
@@ -386,8 +395,7 @@ def test_no_tooltip_when_the_pointer_has_left(root):
 
 def test_a_tooltip_goes_when_its_window_closes(root):
     top, btn, tip = _tooltip(root)
-    _point_at(btn)
-    tip._show()
+    _show_regardless_of_pointer(tip)
     shown = tip._tip
     assert shown is not None
     top.destroy()                 # closed under the pointer: no <Leave>
@@ -398,8 +406,7 @@ def test_a_tooltip_goes_when_its_window_closes(root):
 
 def test_a_tooltip_goes_when_its_window_is_hidden(root):
     top, btn, tip = _tooltip(root)
-    _point_at(btn)
-    tip._show()
+    _show_regardless_of_pointer(tip)
     shown = tip._tip
     top.withdraw()
     root.update()
@@ -415,8 +422,7 @@ def test_a_tooltip_stays_on_screen(root, screen):
     btn.pack(fill='both', expand=True)
     top.update()
     tip = _ToolTip(btn, 'a fairly long tooltip text ' * 4, lambda: True)
-    _point_at(btn)
-    tip._show()
+    _show_regardless_of_pointer(tip)
     t = tip._tip
     t.update()
     assert t.winfo_x() + t.winfo_reqwidth() <= 400

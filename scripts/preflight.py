@@ -3,7 +3,8 @@
 green CI. This is the pre-push hook (.pre-commit-config.yaml).
 
     python scripts/preflight.py            # everything below
-    python scripts/preflight.py --quick    # base, lint, type check, privacy gate
+    python scripts/preflight.py --quick    # base, lint, practices, type check,
+                                           # privacy gate
 
 Steps, each matching a CI job in .github/workflows/ci.yml:
 
@@ -11,6 +12,8 @@ Steps, each matching a CI job in .github/workflows/ci.yml:
               branch. A branch that is behind origin/master is tested against
               code CI never sees, so this fails until master is merged in.
   lint        ruff check .
+  practices   scripts/best_practices.py (no new docs/best-practices.md
+              violations; part of CI's lint job)
   typecheck   scripts/typecheck.py (Linux + Windows, CI's pins)
   privacy     scripts/publish_public.py --check, and --check-dist on a build
   tests       pytest -n auto with OPENFLO_REQUIRE_GUI=1, under Xvfb on Linux
@@ -198,6 +201,9 @@ def main(argv=None):
         results.append(('Base (master merged in)', True))
         results.append(('Lint (ruff)', run('Lint (ruff)',
                                            [py, '-m', 'ruff', 'check', '.'])))
+        results.append(('Best practices', run(
+            'Best practices (no new violations)',
+            [py, 'scripts/best_practices.py'])))
         results.append(('Type check', run('Type check (as CI)',
                                           [py, 'scripts/typecheck.py',
                                            '--python', py])))

@@ -92,6 +92,53 @@ def test_singlet_gate_missing_channel_raises():
         singlet_gate(df, area="FSC-A", height="NOPE")
 
 
+def _wide_singlet_df(seed=3):
+    """Singlets on FSC-A = 2 x FSC-H with a 15 % spread, plus doublets at
+    FSC-A = 3.1 x FSC-H: wide enough that a band fitted on height/area
+    instead of area/height reaches the doublets."""
+    rng = np.random.default_rng(seed)
+    h_s = rng.lognormal(10.0, 0.4, 20_000)
+    a_s = 2.0 * h_s * rng.normal(1.0, 0.15, h_s.size)
+    h_d = rng.lognormal(10.2, 0.4, 1_500)
+    a_d = 3.1 * h_d * rng.normal(1.0, 0.15, h_d.size)
+    return pd.DataFrame({"FSC-A": np.r_[a_s, a_d], "FSC-H": np.r_[h_s, h_d]})
+
+
+def test_singlet_gate_band_is_area_over_height():
+    # Expected corners worked out here from the definition, not from the
+    # code under test: median +/- 3 robust SD of FSC-A/FSC-H, the rays
+    # area = r * height clipped to the 0.1-99.9th height percentiles.
+    df = _wide_singlet_df()
+    a, h = df["FSC-A"].to_numpy(), df["FSC-H"].to_numpy()
+    r = a / h
+    med = np.median(r)
+    sd = np.median(np.abs(r - med)) / 0.6744897501960817
+    r_lo, r_hi = med - 3 * sd, med + 3 * sd
+    h_lo, h_hi = np.percentile(h, [0.1, 99.9])
+    expected = [[r_lo * h_lo, h_lo], [r_lo * h_hi, h_hi],
+                [r_hi * h_hi, h_hi], [r_hi * h_lo, h_lo]]
+
+    g = singlet_gate(df, area="FSC-A", height="FSC-H")
+    np.testing.assert_allclose(g["vertices"], expected, rtol=1e-9)
+
+
+def test_singlet_gate_matches_the_auto_gate_proposal():
+    # Edit > Add singlet gate and the auto-gate dialog must draw one gate.
+    from openflo.pipeline import auto_singlet_gate
+
+    df = _wide_singlet_df(seed=7)
+    for k in (2.0, 3.0, 4.5):
+        g = singlet_gate(df, area="FSC-A", height="FSC-H", k=k)
+        verts, _q = auto_singlet_gate(df["FSC-A"], df["FSC-H"], k=k)
+        np.testing.assert_allclose(g["vertices"], verts, rtol=1e-12)
+
+
+def test_singlet_gate_too_few_events_raises():
+    df = pd.DataFrame({"FSC-A": [2.0, 4.0, 6.0], "FSC-H": [1.0, 2.0, 3.0]})
+    with pytest.raises(ValueError, match="singlet_gate"):
+        singlet_gate(df, area="FSC-A", height="FSC-H")
+
+
 def test_fmo_threshold_matches_percentile():
     rng = np.random.default_rng(7)
     vals = rng.normal(100.0, 15.0, size=50_000)

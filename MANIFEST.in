@@ -3,6 +3,7 @@
 # (Wheels still exclude tests/ — they're for development, not the installed lib.)
 recursive-include tests *.py
 recursive-include scripts *.py
+include scripts/best_practices_baseline.json
 recursive-include templates *.json *.md
 recursive-include src/openflo/template_library *.json *.md
 include CHANGELOG.md

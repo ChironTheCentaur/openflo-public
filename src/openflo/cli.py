@@ -84,7 +84,13 @@ import matplotlib.pyplot as plt  # noqa: E402
 from .cli_args import DEFAULT_DPI  # noqa: E402
 from .export_stamp import savefig_metadata  # noqa: E402
 from .fluor_catalog import COMMON_FLUORS  # noqa: E402
-from .pipeline import FlowExperiment, FlowSample, FMOGater, concatenate  # noqa: E402
+from .pipeline import (  # noqa: E402
+    FlowExperiment,
+    FlowSample,
+    FMOGater,
+    concatenate,
+    find_scatter_channel,
+)
 from .som_kernel import FLOWSOM_DEFAULT_METACLUSTERS  # noqa: E402
 
 # ── Gate JSON parsing ─────────────────────────────────────────────────────────
@@ -1004,9 +1010,8 @@ def _calibrate_bead_micron(trial_dir, fmo_sets, bead_um=8.0):
             except Exception as exc:
                 print(f"  [Calibration] Could not read {path}: {exc}")
                 continue
-            fsc = next((c for c in bead.data.columns
-                        if c.upper().startswith('FSC')
-                        and c.upper().endswith('-A')), None)
+            fsc = find_scatter_channel(bead.data.columns, 'FSC', '-A',
+                                       fallback=False)
             if fsc is None:
                 continue
             vals = bead.data[fsc].astype(float)
@@ -1173,18 +1178,6 @@ def build_fmo_thresholds(fcs_dir, fmo_map, label, fmo_percentile=99.0):
     return gater.compute(percentile=fmo_percentile)
 
 
-def _find_scatter_channel(s, prefix):
-    """Pick the area-version scatter channel matching prefix (FSC/SSC).
-    Prefers '-A' channels; falls back to the first match."""
-    prefix_u = prefix.upper()
-    area = [c for c in s.scatter_channels
-            if c.upper().startswith(prefix_u) and '-A' in c.upper()]
-    if area:
-        return area[0]
-    other = [c for c in s.scatter_channels if c.upper().startswith(prefix_u)]
-    return other[0] if other else None
-
-
 def save_plots(s, out_dir, dpi=DEFAULT_DPI):
     from itertools import combinations
     os.makedirs(out_dir, exist_ok=True)
@@ -1219,8 +1212,8 @@ def save_plots(s, out_dir, dpi=DEFAULT_DPI):
     # FSC vs SSC scatter, colored by cluster — separate file so it's easy to
     # find. Uses the raw (un-transformed) scatter channels, which is the
     # standard flow-cytometry view for population gating.
-    fsc = _find_scatter_channel(s, 'FSC')
-    ssc = _find_scatter_channel(s, 'SSC')
+    fsc = find_scatter_channel(s.scatter_channels, 'FSC')
+    ssc = find_scatter_channel(s.scatter_channels, 'SSC')
     if fsc and ssc and 'cluster' in s.data.columns:
         try:
             fig, ax = plt.subplots(figsize=(7, 6))
@@ -1268,8 +1261,8 @@ def run_group_umap(samples, label, out_dir, random_state=42,
     # Locate FSC/SSC channels — add as a third panel when present so we get
     # both the UMAP view *and* the classic flow-cytometry FSC vs SSC view of
     # the same cluster assignment.
-    fsc = _find_scatter_channel(ref, 'FSC')
-    ssc = _find_scatter_channel(ref, 'SSC')
+    fsc = find_scatter_channel(ref.scatter_channels, 'FSC')
+    ssc = find_scatter_channel(ref.scatter_channels, 'SSC')
     have_scatter = bool(fsc and ssc)
 
     n_panels = 3 if have_scatter else 2
@@ -1935,7 +1928,7 @@ def _label_key(lbl, det, fluors):
     return _fold_label(lbl)
 
 
-def _align_shared_channels(samples, names):
+def align_shared_channels(samples, names):
     """Match the marker channels of `samples` by antibody label, so each
     column of the shared clustering holds ONE marker in every sample.
     Returns (channels, columns, notes, display): `channels` are the first
@@ -1969,8 +1962,9 @@ def _align_shared_channels(samples, names):
        else). Two different labels on one detector are never pooled.
     3. Every other channel is left out, and named."""
     suffix = _detector_suffix
-    dets = [[d for d in s.fluor_channels if d in s.data.columns]
-            for s in samples]
+    # A sample without data (a library stub) has all its fluor channels.
+    dets = [[d for d in s.fluor_channels
+             if s.data is None or d in s.data.columns] for s in samples]
     fluors = _fluor_tokens(d for ds in dets for d in ds)
 
     def label(s, det):
@@ -2082,6 +2076,10 @@ def _align_shared_channels(samples, names):
     display = {d: (show(display[d], d) if taken.count(display[d]) > 1
                    and display[d] != d else display[d]) for d in channels}
     return channels, columns, notes, display
+
+
+# The name the CLI's own callers and tests use.
+_align_shared_channels = align_shared_channels
 
 
 def _shared_cluster_labels(samples, cluster_task, names=None):

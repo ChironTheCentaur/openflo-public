@@ -228,29 +228,10 @@ class SessionMixin(EditorMixin):
             self._autosave_dir(),
             'session-' + self._instance_session_id() + self.SESSION_EXT)
 
-    @staticmethod
-    def _pid_alive(pid):
-        """Best-effort: is a process with this PID currently running?"""
-        try:
-            pid = int(pid)
-        except (TypeError, ValueError):
-            return False
-        if pid <= 0:
-            return False
-        try:
-            if os.name == 'nt':
-                import ctypes
-                # PROCESS_QUERY_LIMITED_INFORMATION (0x1000) — granted even for
-                # processes we can't fully open; handle truthy ⇒ alive.
-                h = ctypes.windll.kernel32.OpenProcess(0x1000, False, pid)
-                if h:
-                    ctypes.windll.kernel32.CloseHandle(h)
-                    return True
-                return False
-            os.kill(pid, 0)
-            return True
-        except (OSError, OverflowError, ValueError):
-            return False
+    # One answer to "is this PID running?" for autosaves and session locks.
+    # A process we may not signal (PermissionError) is alive, so resume and
+    # pruning never take a file a running instance still owns.
+    _pid_alive = staticmethod(_lock.pid_alive)
 
     def _pid_from_autosave(self, path):
         """Owning PID encoded in a 'session-<pid>-<token>.flowsession' name."""

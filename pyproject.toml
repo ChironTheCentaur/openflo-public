@@ -196,7 +196,7 @@ target-version = "py311"
 extend-exclude = [".venv", "outputs", "results", "test fsc", ".phenograph_cache"]
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I", "UP", "B"]
+select = ["E", "F", "W", "I", "UP", "B", "TC004"]  # TC004: docs/best-practices.md BP4
 ignore = [
     "E501",  # line length handled by formatter; many long scientific lines are clearer left as-is
     "E701",  # compact `if x: return` guard lines used throughout

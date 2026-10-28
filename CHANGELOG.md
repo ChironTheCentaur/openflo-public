@@ -6,6 +6,36 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed
+- **A layout bar chart of All events shows the statistic it names.** A
+  GeoMean bar on the ungated sample showed the plain Mean. Every bar now
+  takes its number from the same statistics as the Statistics window, in
+  the GeoMean form Preferences > Statistics picks (FlowJo's by default).
+- **Edit > Add singlet gate draws the same gate as the auto-gate.** It
+  fitted its band on FSC-H/FSC-A while the auto-gate, Re-place on each
+  sample and the doublet filter use FSC-A/FSC-H; on widely spread singlets
+  the flipped band let far more doublets through. New menu-made singlet
+  gates change; gates already saved keep their corners. Behaviour change.
+- **The command line finds FSC and SSC channels the way the app does.**
+  The scatter-channel lookup was written three times; the command line's
+  copy matched '-A' anywhere in a name, so on unusual names its FSC vs SSC
+  plots could use a different channel than the cleaning steps. One lookup
+  now serves all of them; standard names (FSC-A, SSC-A) pick as before.
+- **FMO thresholds from the command line skip infinite values, as the
+  app's FMO dialog does.** One infinite event in an FMO control made the
+  command-line threshold NaN, so nothing could pass it; infinite values
+  are now left out, and a control with no finite values is skipped with a
+  note instead of stopping the run. Finite data gives the same threshold
+  as before. Behaviour change.
+- **The Python API pairs channels across samples as the command line
+  does.** `align_fluor_labels`, `concatenate_by_label` and
+  `common_fluor_warning` matched only identical label strings, so 'CD3' and
+  'cd-3', or 'CD901b FL1' and 'CD901b', stayed apart, an unlabelled channel
+  never paired with its detector's label elsewhere, and a label on -A
+  pooled with the same label on -H. They now use the shared clustering's
+  matcher: one set of rules for both. The loaded-samples panel warning
+  follows them. Behaviour change.
+
 ## [2.8.0] - 2026-10-22
 
 Still a public beta. Everything since 2.7.0: macOS fixes, debarcoding, mass

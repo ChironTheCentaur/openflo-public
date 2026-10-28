@@ -340,7 +340,7 @@ def geomean_axis_note(rows, label):
 
 def population_stats(sample_name, df, gates, order, channel_labels, channels,
                      want, stat_chan, select=None, transforms=None,
-                     stat_forms=None, stat_axes=None):
+                     stat_forms=None, stat_axes=None, all_events=False):
     """Statistic rows for ONE sample's populations (pure — no Tk).
 
     ``want`` is the set of selected stat names; ``stat_chan`` the per-channel
@@ -371,6 +371,11 @@ def population_stats(sample_name, df, gates, order, channel_labels, channels,
     such a channel it is taken on the workspace's axis, elsewhere on the
     stored display transform. Each row's hidden ``__geomean_axis__`` says,
     per channel label, which axis its GeoMean used (geomean_axis_text).
+
+    ``all_events`` adds a first row for the whole sample (``__gid__`` None,
+    Population 'All events'), whose channel statistics follow the same forms
+    and axes as every gated row. It has no parent: %Parent and
+    %Grandparent are NaN, %Total is 100.
     """
     import numpy as np
 
@@ -403,6 +408,20 @@ def population_stats(sample_name, df, gates, order, channel_labels, channels,
     keys = population_keys(gates, channel_labels)
     rows = []
     row_gids = []
+    if all_events:
+        masks[None] = np.ones(total, dtype=bool)
+        counts[None] = total
+        row = {'Sample': sample_name, 'Population': 'All events',
+               '__gid__': None, '__key__': ''}
+        if 'Count' in want:
+            row['Count'] = total
+        for name in ('%Parent', '%Grandparent'):
+            if name in want:
+                row[name] = float('nan')
+        if '%Total' in want:
+            row['%Total'] = 100.0 if total else float('nan')
+        rows.append(row)
+        row_gids.append(None)
     for gid in emit:
         if gid not in gates or gid not in counts:
             continue

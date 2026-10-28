@@ -82,7 +82,7 @@ class AutoCleanMixin(EditorMixin):
         ``(median_fsc, sample_name)`` or ``(None, None)``. FSC-A is linear in
         the editor's data (only fluorescence channels are transformed), so the
         median is a valid linear size ruler."""
-        from .pipeline import _autoclean_find_scatter
+        from .pipeline import find_scatter_channel
         tokens = ('bead', 'rainbow', 'calib')
         for nm in self._sample_order:
             if not any(tok in nm.lower() for tok in tokens):
@@ -90,7 +90,7 @@ class AutoCleanMixin(EditorMixin):
             sd = getattr(self._samples.get(nm), 'data', None)
             if sd is None or len(sd) == 0:
                 continue
-            fsc = _autoclean_find_scatter(sd, 'FSC', '-A')
+            fsc = find_scatter_channel(sd, 'FSC', '-A')
             if fsc is None:
                 continue
             vals = np.asarray(sd[fsc].values, dtype=float)

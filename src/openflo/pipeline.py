@@ -46,6 +46,7 @@ from . import fcs_read as _fcs_read
 from . import numba_threads
 from .errors import note
 from .fcs_export import fcs_event_block
+from .gating_helpers import fmo_threshold
 from .parallel import tree_kneighbors
 from .robust import MAD_TO_SD
 from .som_kernel import FLOWSOM_DEFAULT_METACLUSTERS
@@ -1002,15 +1003,23 @@ def autoclean_methods_signature(gate):
     return tuple(out)
 
 
-def _autoclean_find_scatter(df, prefix, suffix='-A'):
+def find_scatter_channel(columns, prefix, suffix='-A', fallback=True):
+    """The scatter channel named ``prefix``...``suffix`` (e.g. FSC-A, SSC-H),
+    case-insensitive; with ``fallback``, the first ``prefix`` channel when
+    none ends in ``suffix``. None if none fits. ``columns`` is any iterable
+    of names, or a DataFrame (its columns). The one lookup the auto-clean
+    steps, FlowSample and the CLI share; they once each had their own and
+    did not always agree."""
+    names = [str(c) for c in columns]
     pu, su = prefix.upper(), suffix.upper()
-    for c in df.columns:
+    for c in names:
         cu = c.upper()
         if cu.startswith(pu) and cu.endswith(su):
             return c
-    for c in df.columns:
-        if c.upper().startswith(pu):
-            return c
+    if fallback:
+        for c in names:
+            if c.upper().startswith(pu):
+                return c
     return None
 
 
@@ -1093,7 +1102,7 @@ def _autoclean_debris_mask(df, params):
     platelet assay, all the bacteria of a bacterial-load assay, and the
     lymphocytes under large tumour cells), so it runs only when asked for."""
     n = len(df)
-    fsc = _autoclean_find_scatter(df, 'FSC', '-A')
+    fsc = find_scatter_channel(df, 'FSC', '-A')
     if fsc is None:
         return np.ones(n, dtype=bool)
     vals = np.asarray(df[fsc].values, dtype=float)
@@ -1108,7 +1117,7 @@ def _autoclean_debris_mask(df, params):
         # frozen gate replays the full 2-D cut instead of a lossy 1-D floor.
         gthr = params.get('min_ssc_granular')
         if gthr is not None:
-            ssc = params.get('ssc_channel') or _autoclean_find_scatter(
+            ssc = params.get('ssc_channel') or find_scatter_channel(
                 df, 'SSC', '-A')
             if ssc is not None and ssc in df.columns:
                 svals = np.asarray(df[ssc].values, dtype=float)
@@ -1137,7 +1146,7 @@ def _autoclean_debris_mask(df, params):
     if fthr is None:
         return np.ones(n, dtype=bool)
     low_fsc = fin & (vals < float(fthr))
-    ssc = _autoclean_find_scatter(df, 'SSC', '-A')
+    ssc = find_scatter_channel(df, 'SSC', '-A')
     if ssc is not None and ssc != fsc and params.get('use_ssc', True):
         # Rescue granular cells: among the small (low-FSC) events, is there a
         # genuinely separate HIGH-SSC subpopulation (granulocytes)? Look for a
@@ -1379,8 +1388,8 @@ def _autoclean_doublets_mask(df, params, ref_mask=None):
     tol = float(params.get('tol', 0.25))
     if tol <= 0:
         return np.ones(n, dtype=bool)
-    fa = _autoclean_find_scatter(df, 'FSC', '-A')
-    fh = _autoclean_find_scatter(df, 'FSC', '-H')
+    fa = find_scatter_channel(df, 'FSC', '-A')
+    fh = find_scatter_channel(df, 'FSC', '-H')
     if fa is None or fh is None or fa == fh:
         return np.ones(n, dtype=bool)
     a = np.asarray(df[fa].values, dtype=float)
@@ -1440,7 +1449,7 @@ def autoclean_debris_threshold(df, params):
     no bead anchor. Used to FREEZE an auto cut to a fixed value when
     copying."""
     params = params or {}
-    fsc = _autoclean_find_scatter(df, 'FSC', '-A')
+    fsc = find_scatter_channel(df, 'FSC', '-A')
     if fsc is None:
         return None
     manual = params.get('min_fsc')
@@ -1472,7 +1481,7 @@ def autoclean_debris_freeze(df, params):
     thr = autoclean_debris_threshold(df, params)
     if thr is None:
         return {}
-    out = {'min_fsc': float(thr)}
+    out: dict[str, float | str] = {'min_fsc': float(thr)}
     # A manual floor or a bead absolute-size cut is a genuine 1-D threshold —
     # only the 2-D valley cut carries an SSC granulocyte rescue to pin.
     if params.get('min_fsc') is not None:
@@ -1481,8 +1490,8 @@ def autoclean_debris_freeze(df, params):
     if (_debris_mode(params) == 'bead' and bead_fsc
             and params.get('min_um') and float(bead_fsc) > 0):
         return out
-    fsc = _autoclean_find_scatter(df, 'FSC', '-A')
-    ssc = _autoclean_find_scatter(df, 'SSC', '-A')
+    fsc = find_scatter_channel(df, 'FSC', '-A')
+    ssc = find_scatter_channel(df, 'SSC', '-A')
     if (fsc is None or ssc is None or ssc == fsc
             or not params.get('use_ssc', True)):
         return out
@@ -1558,7 +1567,7 @@ def autoclean_method_diagnostic(key, df, params, channel_labels=None):
         return "no events"
 
     if key == 'debris':
-        fsc = _autoclean_find_scatter(df, 'FSC', '-A')
+        fsc = find_scatter_channel(df, 'FSC', '-A')
         if fsc is None:
             return "no FSC-A channel"
         if params.get('min_fsc') is not None:
@@ -1607,8 +1616,8 @@ def autoclean_method_diagnostic(key, df, params, channel_labels=None):
         return None
 
     if key == 'doublets':
-        fa = _autoclean_find_scatter(df, 'FSC', '-A')
-        fh = _autoclean_find_scatter(df, 'FSC', '-H')
+        fa = find_scatter_channel(df, 'FSC', '-A')
+        fh = find_scatter_channel(df, 'FSC', '-H')
         if fa is None or fh is None or fa == fh:
             return "needs both FSC-A and FSC-H"
         if float(params.get('tol', 0.25)) <= 0:
@@ -7603,7 +7612,14 @@ class FMOGater:
             if col is None:
                 log.info(f"  [FMO] '{ch}' not found in {sample.name} — skipped.")
                 continue
-            val = float(np.percentile(sample.data[col].dropna(), percentile))
+            # The app's FMO dialog cut (gating_helpers.fmo_threshold): finite
+            # values only. dropna() kept +/-inf, and one +inf made the cut NaN.
+            try:
+                val = fmo_threshold(sample.data[col].to_numpy(), percentile)
+            except ValueError:
+                log.info(f"  [FMO] '{ch}' has no finite values in "
+                         f"{sample.name} — skipped.")
+                continue
             thresholds[ch] = val
             tag = ' [UNSTAINED fallback]' if self._is_fallback.get(ch) else ''
             # The cut is in the transformed space the samples are gated in;
@@ -8288,16 +8304,7 @@ class FlowSample:
     def _find_scatter_col(self, prefix, suffix='-A'):
         """Return the column matching e.g. FSC-A or FSC-H, case-insensitive,
         preferring exact -A / -H endings. None if not found."""
-        prefix_u = prefix.upper()
-        suffix_u = suffix.upper()
-        for c in self.data.columns:
-            cu = c.upper()
-            if cu.startswith(prefix_u) and cu.endswith(suffix_u):
-                return c
-        for c in self.data.columns:
-            if c.upper().startswith(prefix_u):
-                return c
-        return None
+        return find_scatter_channel(self.data.columns, prefix, suffix)
 
     def filter_debris(self, fsc_channel=None, min_fsc=None):
         """Drop events whose FSC-A is below `min_fsc`. No-op if `min_fsc`
@@ -10089,46 +10096,86 @@ def _sample_fluor_labels(sample):
 
 
 def align_fluor_labels(samples):
-    """Align a set of samples by antibody label.
+    """Align a set of samples by antibody label, with the CLI's matcher.
+
+    The pairing is :func:`openflo.cli.align_shared_channels`, the one the
+    shared clustering uses, so the library and the CLI agree on which
+    channels are one marker: labels compare without case, spacing,
+    punctuation or a fluor word at either end, Greek letters as Latin; the
+    -A/-H/-W suffix is part of the match; an unlabelled channel pairs by
+    detector; two different labels on one detector are never pooled. See
+    that function for the full rules.
 
     Parameters
     ----------
     samples : iterable of FlowSample-like
         Each needs ``.name``, ``.fluor_channels`` (detector names) and
-        ``.channel_labels`` ({detector: antibody label}).
+        ``.channel_labels`` ({detector: antibody label}). ``.data`` may be
+        None (every fluor channel then counts as present); otherwise only
+        fluor channels that are columns of ``.data`` take part.
 
     Returns
     -------
     dict with:
-      ``common``      ordered list of labels present as a fluor in EVERY
-                      sample (ordered by the first sample's channel order)
-      ``per_sample``  {sample_name: {label: detector}}
-      ``missing``     {label: [sample_names lacking it]} for any label
-                      present in some-but-not-all samples
-      ``all_labels``  ordered union of every label seen
+      ``common``      the matched columns' names, one per column, in the
+                      first sample's channel order (the matcher's display
+                      name: the first sample's label, or the detector when
+                      unlabelled)
+      ``per_sample``  {sample_name: {name: detector}}: each matched column
+                      under its common name, plus every unmatched channel
+                      under its own label (its detector when unlabelled;
+                      'label (detector)' where the bare label would clash
+                      or is held, unmatched, by every sample)
+      ``missing``     {name: [sample_names lacking it]} for the unmatched
+                      channels
+      ``all_labels``  every name above, in first-seen order over the
+                      samples
     """
     samples = list(samples)
+    names = [getattr(s, 'name', None) or f'sample{i}'
+             for i, s in enumerate(samples)]
+    if not samples:
+        return {'common': [], 'per_sample': {}, 'missing': {},
+                'all_labels': []}
+    from .cli import align_shared_channels
+    channels, columns, _notes, display = align_shared_channels(samples, names)
+    common = [display[d] for d in channels]
+    # Each sample's channels in its own order: (detector, matched name or
+    # None, own label).
+    rows = []
+    for s, cols in zip(samples, columns, strict=True):
+        matched = dict(zip(cols, common, strict=True))   # detector -> name
+        labels = getattr(s, 'channel_labels', None) or {}
+        data = getattr(s, 'data', None)
+        rows.append([(det, matched.get(det), labels.get(det, det) or det)
+                     for det in getattr(s, 'fluor_channels', None) or []
+                     if data is None or det in data.columns])
+    # An unmatched label every sample holds (CD3 on FL1-A in one, on FL1-H
+    # in the other) is not one marker: name it with its detector there.
+    held = {}
+    for nm, row in zip(names, rows, strict=True):
+        for _det, m, lbl in row:
+            if m is None:
+                held.setdefault(lbl, set()).add(nm)
+    n = len(set(names))
+    everywhere = {lbl for lbl, ns in held.items() if len(ns) == n}
     per_sample = {}
-    order = []                       # first-seen label order
-    seen = set()
-    label_to_samples = {}            # label -> set(names) that have it
-    for s in samples:
-        name = getattr(s, 'name', None) or f'sample{len(per_sample)}'
-        l2d = _sample_fluor_labels(s)
-        per_sample[name] = l2d
-        for lbl in l2d:
-            if lbl not in seen:
-                seen.add(lbl)
+    order = []                       # first-seen name order
+    have = {}                        # unmatched name -> names that have it
+    for nm, row in zip(names, rows, strict=True):
+        l2d = per_sample.setdefault(nm, {})
+        for det, m, lbl in row:
+            if m is None:
+                if lbl in everywhere or lbl in l2d or lbl in common:
+                    lbl = f'{lbl} ({det})'
+                have.setdefault(lbl, set()).add(nm)
+            else:
+                lbl = m
+            l2d[lbl] = det
+            if lbl not in order:
                 order.append(lbl)
-            label_to_samples.setdefault(lbl, set()).add(name)
-
-    n = len(samples)
-    common = [lbl for lbl in order if len(label_to_samples.get(lbl, ())) == n]
-    missing = {
-        lbl: sorted(set(per_sample) - label_to_samples[lbl])
-        for lbl in order
-        if 0 < len(label_to_samples[lbl]) < n
-    }
+    missing = {lbl: sorted(set(per_sample) - have[lbl])
+               for lbl in order if lbl in have}
     return {'common': common, 'per_sample': per_sample,
             'missing': missing, 'all_labels': order}
 
@@ -10168,9 +10215,10 @@ def relabel_gate_for_sample(gate, label_to_detector):
 
 def common_fluor_warning(samples):
     """Human-readable warning when samples don't share a common fluor
-    label set, or '' when they're all consistent. Lists which labels are
-    missing from which samples and notes that cross-sample analysis uses
-    the common (intersection) set."""
+    panel, or '' when every channel pairs across them. Channels pair as
+    :func:`align_fluor_labels` pairs them (so 'CD3' and 'cd-3' are one
+    marker); lists which unmatched labels are missing from which samples
+    and notes that cross-sample analysis uses the matched (common) set."""
     info = align_fluor_labels(samples)
     if not info['missing']:
         return ''
@@ -10185,9 +10233,11 @@ def common_fluor_warning(samples):
 
 def concatenate_by_label(samples, label_col='sample_origin'):
     """Like :func:`concatenate`, but first renames each sample's fluor
-    columns to their antibody LABEL and keeps ONLY the labels common to
-    every sample — so a marker on different fluors across samples lines
-    up into one column. Scatter / non-fluor columns are dropped from the
+    columns to their antibody LABEL and keeps ONLY the channels that pair
+    across every sample (:func:`align_fluor_labels`, the CLI's matcher) —
+    so a marker on different fluors, or spelt 'CD3' in one sample and
+    'cd-3' in another, lines up into one column named by the first
+    sample's label. Scatter / non-fluor columns are dropped from the
     merged frame (clustering uses fluor labels). Compensation already
     happened per sample upstream on detectors, so this is purely a
     rename-and-intersect for cross-sample clustering.

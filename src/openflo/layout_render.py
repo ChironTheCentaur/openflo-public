@@ -102,7 +102,8 @@ class SampleContext:
         return 'All events' if gid is None else self._path(gid)
 
     def rows(self, want, channels=()):
-        """``{gid: stats row}`` over every population of the sample."""
+        """``{gid: stats row}`` over every population of the sample, with
+        the whole sample under gid None."""
         key = (tuple(sorted(want)), tuple(channels))
         if key not in self._rows:
             s = self.ed._samples.get(self.sample)
@@ -114,7 +115,7 @@ class SampleContext:
                     self.sample, s.data, self.gates, self.order, self.labels,
                     [c for c in channels if c in s.data.columns], set(want),
                     CHAN_STATS, transforms=self.transforms,
-                    stat_axes=self.stat_axes)
+                    stat_axes=self.stat_axes, all_events=True)
                 self._rows[key] = {r['__gid__']: r for r in rows}
         return self._rows[key]
 
@@ -829,26 +830,16 @@ def draw_chart(rc, fig, box, item, iid=None):
         vals = []
         geo_rows = []               # whose GeoMean axis the label names
         for ctx, gid in layers:
-            if gid is None:
-                v = (ctx.n_events() if value == 'Count'
-                     else 100.0 if value == '%Total' else float('nan'))
-                if chan_stat:
-                    s = ed._samples[ctx.sample]
-                    from .pipeline import to_linear
-                    lin = to_linear(s.data[chan].values,
-                                    (ctx.transforms or {}).get(chan))
-                    v = float(np.nanmedian(lin)) if value == 'Median' else (
-                        float(np.nanmean(lin)))
-            else:
-                rows = ctx.rows({value}, [chan] if chan_stat else [])
-                lbl = ctx.labels.get(chan, chan) if chan else ''
-                r = rows.get(gid, {})
-                # Each sample names the channel by its own label.
-                ax_used = (r.get('__geomean_axis__') or {}).get(lbl)
-                if ax_used:
-                    geo_rows.append({'__geomean_axis__': {'': ax_used}})
-                v = r.get(f'{value} {lbl}' if chan_stat else value,
-                          float('nan'))
+            # All events (gid None) too: its row takes the chosen statistic
+            # in the Preferences form, as every gated layer's does.
+            rows = ctx.rows({value}, [chan] if chan_stat else [])
+            lbl = ctx.labels.get(chan, chan) if chan else ''
+            r = rows.get(gid, {})
+            # Each sample names the channel by its own label.
+            ax_used = (r.get('__geomean_axis__') or {}).get(lbl)
+            if ax_used:
+                geo_rows.append({'__geomean_axis__': {'': ax_used}})
+            v = r.get(f'{value} {lbl}' if chan_stat else value, float('nan'))
             if ctx.unknown(gid):
                 v = float('nan')
             vals.append(float(v) if v is not None else float('nan'))

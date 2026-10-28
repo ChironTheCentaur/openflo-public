@@ -41,6 +41,10 @@ script uses the pinned pyright, checks that your venv has exactly the package
 versions CI installs, and confirms from pyright's own output which
 site-packages it read. If it exits 2, it tells you what differs from CI.
 
+New code is reviewed against [docs/best-practices.md](docs/best-practices.md).
+`python scripts/best_practices.py` (part of preflight and CI's lint job)
+checks the mechanical rules there and fails when a change adds a violation.
+
 ## Issue templates
 
 Bug reports are far more useful with:
