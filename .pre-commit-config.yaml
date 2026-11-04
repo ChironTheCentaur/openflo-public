@@ -1,0 +1,70 @@
+# Run with:  pre-commit run --all-files
+# Install with: pip install pre-commit && pre-commit install
+#   (installs the pre-commit AND pre-push hooks: default_install_hook_types)
+#
+# Lightweight on purpose: the hooks that catch the F821 / B023 / unused-import
+# class of bug before commit, plus housekeeping that changes nothing today.
+# At PUSH time scripts/preflight.py runs what CI runs on a PR (pyright via
+# scripts/typecheck.py, the privacy gate, the tests with the GUI required):
+# every failure it finds would otherwise cost a red 11-job CI run and a fix-up
+# push. Skip once with `git push --no-verify`.
+#
+# THE RULE HERE: a local hook must check what CI checks, and must not rewrite
+# files CI is happy with. Two hooks that violated it were removed after
+# measuring what they would actually do on this repo:
+#
+#   ruff-format         would reformat 275 of 277 files. CI runs `ruff check`
+#                       and never checks formatting, so this was pure churn:
+#                       one commit rewriting the whole codebase and its blame,
+#                       to satisfy a rule nothing enforces.
+#
+#   mixed-line-ending   --fix=lf would rewrite 302 files. This repo is checked
+#                       out with core.autocrlf=true, so git hands you CRLF and
+#                       the hook converts it back to LF on every commit,
+#                       forever. The hook and the setting simply disagree, and
+#                       the setting wins on checkout.
+#
+# If formatting or line endings are ever worth enforcing, enforce them in CI
+# first and let this file follow — not the other way round.
+
+default_install_hook_types: [pre-commit, pre-push]
+default_stages: [pre-commit]
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: ["--maxkb=1024"]
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    # ruff-pre-commit pins the ruff version itself — keep this in sync with
+    # pyproject's dev extra AND with ci.yml, which pins ruff==0.15.19. It had
+    # drifted to v0.15.14, so a local hook and CI could disagree about the same
+    # file, which is worse than having no local hook at all.
+    rev: v0.15.19
+    hooks:
+      - id: ruff-check
+        args: [--fix, --exit-non-zero-on-fix]
+
+  - repo: local
+    hooks:
+      # Everything CI's PR checks run: master merged in, lint, the pyright
+      # gate (scripts/typecheck.py), the privacy gate, and the full test
+      # suite with the GUI REQUIRED (under Xvfb on headless Linux). A plain
+      # `pytest` on a box without a display skips ~500 GUI tests and reports
+      # green; that is how GUI-test failures kept reaching CI. A few minutes,
+      # which is the point: CI runs only when a PR is ready, so the push is
+      # when it all has to be right.
+      - id: preflight-like-ci
+        name: preflight (everything CI runs on a PR)
+        entry: python scripts/preflight.py
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]

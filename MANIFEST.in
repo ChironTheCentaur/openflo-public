@@ -1,0 +1,31 @@
+# Ship the regression suite + helper scripts in the source distribution so
+# anyone with the sdist can run `pytest` and reproduce the golden baseline.
+# (Wheels still exclude tests/ — they're for development, not the installed lib.)
+# tests/test_sdist_contents.py checks this promise against the exact sdist
+# file list: every tracked file under tests/ and scripts/ ships unless excluded
+# below, and every repository file a shipped test reads ships too. Tests that
+# check the repository itself (its CI workflows, its git index) are marked
+# checkout_only and skip outside a git checkout.
+recursive-include tests *.py
+# Golden records and the independent reference the tests compare against.
+graft tests/golden
+graft tests/reference
+recursive-include scripts *.py
+include scripts/best_practices_baseline.json
+include scripts/analysis_config.example.json
+include scripts/diagnose.bat scripts/diagnose.sh
+recursive-include templates *.json *.md
+recursive-include src/openflo/template_library *.json *.md
+include CHANGELOG.md
+include src/openflo/_golden.json
+# Install and contributor files the suite checks (setup scripts, pins, the
+# conda environment, the naming section of the contributor guide).
+include setup.sh setup.bat requirements.txt requirements-typecheck.txt
+include environment.yml CONTRIBUTING.md CITATION.cff
+# The public-mirror publisher lists the private tokens its scrub gate blocks,
+# so it must never ship (same reason it is export-ignore in .gitattributes),
+# and neither do the tests that load it.
+exclude scripts/publish_public.py
+exclude tests/test_beta_release.py
+exclude tests/test_mirror_ci_branch.py
+global-exclude __pycache__/* *.py[co]

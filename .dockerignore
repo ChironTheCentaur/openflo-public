@@ -1,0 +1,14 @@
+.git
+.venv
+**/__pycache__
+**/*.pyc
+.pytest_cache
+.ruff_cache
+.phenograph_cache
+outputs/
+results/
+private/
+test fsc/
+tasks/
+*.flowsession
+_gui_*.log
