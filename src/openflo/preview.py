@@ -1,0 +1,261 @@
+"""
+preview.py — interactive scatter preview for a single sample.
+
+Usage:
+    python -m openflo.preview --fcs <fcs-dir> --sample <sample-name>
+    python -m openflo.preview --fcs <fcs-dir> --sample <sample-name> --n 30000 --group late
+"""
+
+import argparse
+import os
+import sys
+
+# Force UTF-8 stdout/stderr — avoid cp1252 crashes on Windows when printing
+# non-ASCII characters such as ≥, →, …, em-dashes.
+try:
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')  # type: ignore[attr-defined]
+    sys.stderr.reconfigure(encoding='utf-8', errors='replace')  # type: ignore[attr-defined]
+except Exception:  # noqa: BLE001 - stream may not support reconfigure
+    pass
+
+import matplotlib.patches as mpatches
+import matplotlib.pyplot as plt
+import numpy as np
+
+from .cli import parse_labels
+from .flow_sample import FlowSample
+from .fmo_gater import FMOGater
+
+# ── channel → display label (since FCS has no PnS) ────────────────────────────
+LABELS = {
+    'FL1-A': 'CD901b (FL1)',
+    'FL2-A':           'CD902 (FL2)',
+    'FL3-A':        'CD903 (FL3)',
+}
+
+# Example FMO-control basenames per detector (replace with your own).
+EARLY_FMOS = {
+    'FL1-A': 'fmo_fl1_early',
+    'FL2-A':           'fmo_fl2_early',
+    'FL3-A':        'fmo_fl3_early',
+}
+LATE_FMOS = {
+    'FL1-A': 'fmo_fl1_late',
+    'FL2-A':           'fmo_fl2_late',
+    'FL3-A':        'fmo_fl3_late',
+}
+
+
+def find_fcs(fcs_dir, name):
+    """Return the first FCS file in `fcs_dir` whose name contains ``_<name>_``.
+
+    Matching ignores case; raises FileNotFoundError when nothing matches.
+    """
+    name_l = name.lower()
+    for f in sorted(os.listdir(fcs_dir)):
+        if not f.lower().endswith('.fcs'):
+            continue
+        base = f.lower()
+        if f'_{name_l}_' in base or base.endswith(f'_{name_l}.fcs'):
+            return os.path.join(fcs_dir, f)
+    raise FileNotFoundError(f"No FCS found for '{name}' in {fcs_dir}")
+
+
+def load_fmo_thresholds(fcs_dir, fmo_map):
+    """Compute ``{channel: threshold}`` from the FMO files in `fmo_map`.
+
+    Missing FMO files are skipped; returns ``{}`` when none are found.
+    """
+    gater = FMOGater()
+    for ch, name in fmo_map.items():
+        try:
+            gater.add_fmo(ch, find_fcs(fcs_dir, name))
+        except FileNotFoundError:
+            pass
+    if not gater.fmos:
+        return {}
+    gater.prepare()
+    return gater.compute()
+
+
+def density_scatter(ax, x, y, s=1.5, cmap='turbo', binned=False, **kwargs):
+    """Scatter `x` against `y` on `ax`, coloured by point density.
+
+    The density is scipy's Gaussian KDE of every point, evaluated at every
+    point: exact, but O(n^2), so minutes on a large file. ``binned=True``
+    evaluates the same KDE with :func:`openflo.density.binned_kde_eval`
+    (milliseconds, within about 0.5% of the exact peak).
+
+    Falls back to a plain scatter when the density estimate fails.
+    """
+    from scipy.stats import gaussian_kde
+    try:
+        xy = np.vstack([x, y])
+        z = None
+        if binned:
+            from .density import binned_kde_eval
+            z = binned_kde_eval(x, y, x, y)
+        if z is None:
+            z = gaussian_kde(xy)(xy)
+        idx = z.argsort()
+        ax.scatter(x[idx], y[idx], c=z[idx], s=s, cmap=cmap,
+                   linewidths=0, **kwargs)
+    except Exception:  # noqa: BLE001 - density colour is cosmetic; falls back to a plain scatter
+        ax.scatter(x, y, s=s, color='steelblue', alpha=0.3, linewidths=0)
+
+
+def gate_quadrant_counts(df, xcol, ycol, xthresh, ythresh):
+    """Return % in each quadrant: (lo/lo, hi/lo, lo/hi, hi/hi)."""
+    n   = len(df)
+    if n == 0:                          # an empty gate/sample → no division
+        return {'lo/lo': 0.0, 'hi/lo': 0.0, 'lo/hi': 0.0, 'hi/hi': 0.0}
+    xhi = df[xcol] > xthresh
+    yhi = df[ycol] > ythresh
+    return {
+        'lo/lo': (~xhi & ~yhi).sum() / n * 100,
+        'hi/lo': ( xhi & ~yhi).sum() / n * 100,
+        'lo/hi': (~xhi &  yhi).sum() / n * 100,
+        'hi/hi': ( xhi &  yhi).sum() / n * 100,
+    }
+
+
+def add_threshold_lines(ax, xthresh=None, ythresh=None, color='red', lw=1.2):
+    """Draw dashed vertical and/or horizontal threshold lines on `ax`."""
+    if xthresh is not None:
+        ax.axvline(xthresh, color=color, lw=lw, ls='--', alpha=0.8)
+    if ythresh is not None:
+        ax.axhline(ythresh, color=color, lw=lw, ls='--', alpha=0.8)
+
+
+def annotate_quadrants(ax, df, xcol, ycol, xthresh, ythresh):
+    """Label the regions the thresholds actually define.
+
+    A missing threshold does not define a boundary, and substituting a
+    sentinel invents one. Passing ``-999`` for an absent FMO threshold would
+    make a plot with only an x threshold display four quadrant percentages
+    — and on a compensated channel whose dim population sits near -2000, the
+    sentinel falls INSIDE the data and splits it 67.9 / 7.0 / 23.2 / 2.0:
+    arbitrary numbers with the appearance of a gating result. ``None`` means
+    what it says, and only the axis that has a threshold is annotated.
+    """
+    n = len(df)
+    if n == 0 or (xthresh is None and ythresh is None):
+        return
+    xl, xh = ax.get_xlim()
+    yl, yh = ax.get_ylim()
+    pad = 0.03
+    fs  = 7.5
+
+    def put(fx, fy, pct, **kw):
+        ax.text(xl + fx*(xh-xl), yl + fy*(yh-yl), f"{pct:.1f}%",
+                fontsize=fs, color='0.3', **kw)
+
+    if xthresh is not None and ythresh is not None:
+        q = gate_quadrant_counts(df, xcol, ycol, xthresh, ythresh)
+        put(pad,     pad,     q['lo/lo'], va='bottom')
+        put(1 - pad, pad,     q['hi/lo'], va='bottom', ha='right')
+        put(pad,     1 - pad, q['lo/hi'], va='top')
+        put(1 - pad, 1 - pad, q['hi/hi'], va='top', ha='right')
+    elif xthresh is not None:                      # a left/right split only
+        hi = float((df[xcol] > xthresh).sum()) / n * 100
+        put(pad,     1 - pad, 100.0 - hi, va='top')
+        put(1 - pad, 1 - pad, hi,         va='top', ha='right')
+    else:                                          # a low/high split only
+        hi = float((df[ycol] > ythresh).sum()) / n * 100
+        put(pad, pad,     100.0 - hi, va='bottom')
+        put(pad, 1 - pad, hi,         va='top')
+
+
+def main():
+    """Show a quick three-panel density preview of one sample with FMO gates."""
+    from ._console import hide_future_warnings
+    hide_future_warnings()
+    ap = argparse.ArgumentParser()
+    ap.add_argument('--fcs',    required=True, help='FCS directory')
+    ap.add_argument('--sample', required=True,
+                    help='Sample name (matched against FCS basenames)')
+    ap.add_argument('--n',      type=int, default=50_000,
+                    help='Events to display (default 50000)')
+    ap.add_argument('--group',  choices=['early', 'late'], default=None,
+                    help='Which FMO set to use (auto-detected from sample name if omitted)')
+    ap.add_argument('--labels', default='',
+                    help='Channel labels e.g. "FL1-A=CD901b;FL2-A=CD902;FL3-A=CD903"')
+    args = ap.parse_args()
+
+    fcs_dir = args.fcs
+    if not os.path.isdir(fcs_dir):
+        sys.exit(f"Directory not found: {fcs_dir}")
+
+    # Auto-detect FMO group
+    group = args.group
+    if group is None:
+        group = 'late' if args.sample.lower().startswith('late') else 'early'
+    fmo_map = LATE_FMOS if group == 'late' else EARLY_FMOS
+    print(f"Using {group} FMOs for gating.")
+
+    # Load and process sample
+    print(f"[STEP 1/3] Loading and preprocessing {args.sample} ...", flush=True)
+    s = FlowSample(find_fcs(fcs_dir, args.sample))
+    s.run_qc()
+    s.auto_compensate()
+    s.apply_transform()
+    labels = parse_labels(args.labels)
+    if labels:
+        s.set_labels(labels)
+
+    # Downsample for display
+    df = s.data.copy()
+    if len(df) > args.n:
+        df = df.sample(args.n, random_state=42)
+    print(f"Displaying {len(df):,} events.")
+
+    # FMO thresholds
+    print("[STEP 2/3] Computing FMO thresholds ...", flush=True)
+    thresh = load_fmo_thresholds(fcs_dir, fmo_map)
+
+    cd901b = 'FL1-A'
+    cd902 = 'FL2-A'
+    cd903 = 'FL3-A'
+
+    # Use assigned labels for display if available
+    def disp(det):
+        return s.channel_labels.get(det, LABELS.get(det, det))
+
+    t41  = thresh.get(cd901b)
+    t34  = thresh.get(cd902)
+    t45  = thresh.get(cd903)
+
+    # ── Figure ────────────────────────────────────────────────────────────────
+    print("[STEP 3/3] Rendering figure ...", flush=True)
+    fig, axes = plt.subplots(1, 3, figsize=(16, 5.5))
+    fig.suptitle(f"{args.sample}  |  {len(df):,} events  |  {group} FMOs",
+                 fontsize=12, fontweight='bold')
+
+    plots = [
+        (axes[0], cd901b, cd903, t41, t45),   # primary gate
+        (axes[1], cd901b, cd902, t41, t34),   # progenitor proxy
+        (axes[2], cd903, cd902, t45, t34),   # bulk vs progenitor
+    ]
+
+    for ax, xcol, ycol, xth, yth in plots:
+        x = df[xcol].values
+        y = df[ycol].values
+        density_scatter(ax, x, y, alpha=0.5)
+        ax.set_xlabel(disp(xcol), fontsize=10)
+        ax.set_ylabel(disp(ycol), fontsize=10)
+        if xth is not None or yth is not None:
+            add_threshold_lines(ax, xth, yth)
+            annotate_quadrants(ax, df, xcol, ycol, xth, yth)
+
+    # Threshold legend
+    if any(t is not None for t in [t41, t34, t45]):
+        patch = mpatches.Patch(color='red', linestyle='--',
+                               fill=False, label='FMO threshold (p99)')
+        axes[2].legend(handles=[patch], fontsize=8, loc='upper right')
+
+    plt.tight_layout()
+    plt.show()
+
+
+if __name__ == '__main__':
+    main()
