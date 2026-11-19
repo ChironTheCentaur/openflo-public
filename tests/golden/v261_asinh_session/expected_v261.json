@@ -1,0 +1,51 @@
+{
+ "counts_before_save": {
+  "A|CD901b+": 215,
+  "A|CD901b+/CD902+": 107,
+  "A|X+": 200,
+  "B|CD901b+": 191,
+  "B|CD901b+/CD902+": 94
+ },
+ "events_csv": "run/T_A_events.csv",
+ "openflo": "2.6.1",
+ "stored_medians": {
+  "A": {
+   "FL2-A": 0.7507892829880294,
+   "FL1-A": 5.58305260564963,
+   "U:X": 0.6801297808517341
+  },
+  "events": {
+   "FL1-A": 5.58305260564963
+  }
+ },
+ "v261_restore": {
+  "csv_first": {
+   "channel_transform": {
+    "FL2-A": "logicle",
+    "FL1-A": "logicle",
+    "U:X": "logicle"
+   },
+   "counts": {
+    "A|CD901b+": 215,
+    "A|CD901b+/CD902+": 107,
+    "A|X+": 200,
+    "B|CD901b+": 0,
+    "B|CD901b+/CD902+": 0
+   }
+  },
+  "raw_first": {
+   "channel_transform": {
+    "FL2-A": "logicle",
+    "FL1-A": "logicle",
+    "U:X": null
+   },
+   "counts": {
+    "A|CD901b+": 215,
+    "A|CD901b+/CD902+": 107,
+    "A|X+": 200,
+    "B|CD901b+": 0,
+    "B|CD901b+/CD902+": 0
+   }
+  }
+ }
+}
