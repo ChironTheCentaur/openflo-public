@@ -1,0 +1,113 @@
+name: Windows installer
+
+# Builds OpenFlo-Setup-<version>.exe (scripts/build_windows_installer.py, on
+# Linux with NSIS) and, once code signing is set up, has SignPath sign it.
+#
+# Runs on the public mirror only (openflo-public): SignPath Foundation signs
+# open-source software built verifiably from its public source on
+# GitHub-hosted runners, and the mirror's runners are free. On the private
+# repository every job is skipped.
+#
+#   - Version tag (v*) on the mirror: build, then sign when set up.
+#   - Manual run (Actions tab, "Run workflow"): build only, never signed, so
+#     the release certificate can't be asked for on an untagged branch.
+#
+# Every action is pinned to a full commit SHA (version in the comment): this
+# workflow makes what gets signed, so a moved tag must not change it.
+#
+# Signing stays off until these are set on the mirror (Settings -> Secrets and
+# variables -> Actions), after SignPath Foundation accepts the project and the
+# SignPath GitHub app is installed on the mirror:
+#   secret   SIGNPATH_API_TOKEN          a SignPath CI user's API token
+#   variable SIGNPATH_ORGANIZATION_ID    from the SignPath organization page
+#   variable SIGNPATH_PROJECT_SLUG       e.g. openflo
+#   variable SIGNPATH_SIGNING_POLICY     release-signing (or test-signing)
+# Until then the unsigned installer is still built and kept as an artifact.
+# Each signing request waits for a manual approval in SignPath, which their
+# terms require for every release.
+#
+# Set in the SignPath project too (the workflow can't enforce these):
+#   - GitHub policies: disallow_reruns: true, runners.required_github_hosted: true
+#   - Artifact configuration: upload-artifact sends a zip, so the root is a
+#     <zip-file> holding one <pe-file> (OpenFlo-Setup-*.exe), signed with
+#     <authenticode-sign/>; product name and version restricted to OpenFlo's.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-installer-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build the installer
+    if: github.repository == 'ChironTheCentaur/openflo-public'
+    runs-on: ubuntu-24.04
+    outputs:
+      artifact-id: ${{ steps.upload.outputs.artifact-id }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09  # v5.1.0
+        with:
+          # The build runs third-party build backends; they get no token.
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1  # v6.3.0
+        with:
+          python-version: "3.12"
+      - name: Install NSIS and msitools
+        run: sudo apt-get update -q && sudo apt-get install -y -q nsis msitools
+      - name: Tool versions (for the build record)
+        run: |
+          makensis -VERSION
+          python -VV
+      - name: Build
+        run: python scripts/build_windows_installer.py --build-dir build/windows-installer
+      - name: Upload the unsigned installer
+        id: upload
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: installer-unsigned
+          path: build/windows-installer/OpenFlo-Setup-*.exe
+          if-no-files-found: error
+      - name: Record the artifact digest
+        env:
+          DIGEST: ${{ steps.upload.outputs.artifact-digest }}
+        # The approver in SignPath can match this against the request.
+        run: echo "Unsigned installer artifact digest sha256:$DIGEST"
+
+  sign:
+    name: Sign with SignPath
+    needs: build
+    # Skipped (not failed) until signing is configured, so tag runs stay
+    # green; and only for version tags, never a manual run on a branch.
+    if: ${{ vars.SIGNPATH_ORGANIZATION_ID != '' && startsWith(github.ref, 'refs/tags/v') }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      actions: read   # SignPath reads the job details and the artifact
+    # Hosted jobs stop at 6 hours; approve within about 5.
+    timeout-minutes: 330
+    steps:
+      - name: Submit the signing request and wait for approval
+        uses: signpath/github-action-submit-signing-request@ced31329c0317e779dad2eec2a7c3bb46ea1343e  # v1.3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: ${{ vars.SIGNPATH_PROJECT_SLUG }}
+          signing-policy-slug: ${{ vars.SIGNPATH_SIGNING_POLICY }}
+          github-artifact-id: ${{ needs.build.outputs.artifact-id }}
+          wait-for-completion: true
+          # A release waits for a person to approve it in SignPath.
+          wait-for-completion-timeout-in-seconds: 18000
+          output-artifact-directory: signed
+      - name: Upload the signed installer
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+        with:
+          name: installer-signed
+          path: signed/
+          if-no-files-found: error
