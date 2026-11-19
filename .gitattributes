@@ -1,0 +1,26 @@
+# Internal release tooling — never ship to the public mirror.
+# `git archive` (used by scripts/publish_public.py to build the public snapshot)
+# honours export-ignore. The publisher's own scrub-pattern list contains the
+# private research tokens it guards against, so exporting it would BOTH self-trip
+# the fail-closed scrub gate AND leak that context. Keep it private-only.
+scripts/publish_public.py export-ignore
+# Its tests read it, so they stay private-only too.
+tests/test_beta_release.py export-ignore
+tests/test_mirror_ci_branch.py export-ignore
+# Setup for Claude Code cloud sessions on the private repo; nothing a user of
+# the public mirror runs.
+.claude export-ignore
+
+# Windows batch files need CRLF: cmd.exe can miss goto/call labels in LF-only
+# files. Shell scripts stay LF so bash can run them.
+*.bat text eol=crlf
+*.sh text eol=lf
+# Vendored byte for byte (tests/test_stats_plt.py checks its hash): a Windows
+# checkout must not turn its line ends into CRLF.
+src/openflo/pocketlab_table.py text eol=lf
+# The phone app (Capacitor shell, worker, harness) is private: never in the
+# public mirror. It is outside the Python package, so no sdist or wheel
+# carries it either.
+mobile export-ignore
+# Its cloud Mac build (Codemagic reads this name at the repository root).
+codemagic.yaml export-ignore
