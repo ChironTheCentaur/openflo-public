@@ -14,6 +14,7 @@ import re
 
 import numpy as np
 
+from .cluster_caps import LEIDEN_FAST_GRAPH_DEFAULT, METHOD_EVENT_CAP
 from .fluor_catalog import COMMON_FLUORS
 from .som_kernel import FLOWSOM_DEFAULT_METACLUSTERS
 
@@ -31,17 +32,18 @@ def cluster_settings(k, n_jobs, max_events, vram_admission_gb, random_state,
             'n_metaclusters': cc.get('n_metaclusters',
                                      FLOWSOM_DEFAULT_METACLUSTERS),
             'reproducible': cc.get('reproducible', True),
-            'fast_graph': bool(cc.get('fast_graph', False)),
+            'fast_graph': bool(cc.get('fast_graph',
+                                      LEIDEN_FAST_GRAPH_DEFAULT)),
+            'umap_components': cc.get('umap_components', 2),
             'max_events': max_events,
             'vram_admission_gb': vram_admission_gb,
             'random_state': random_state}
 
 
-# The events a method clusters when --max-events is not given: Leiden
-# partitions at most this many and assigns the rest to their nearest
-# partitioned event; FlowSOM trains its SOM on at most this many.
-# PhenoGraph has no cap of its own.
-_METHOD_EVENT_CAP = {'leiden': 200_000, 'flowsom': 50_000}
+# The events a method clusters when --max-events is not given: PhenoGraph
+# and Leiden partition at most this many and assign the rest to their
+# nearest partitioned event; FlowSOM trains its SOM on at most this many.
+_METHOD_EVENT_CAP = METHOD_EVENT_CAP
 
 
 def cluster_by_method(s, task):
@@ -59,7 +61,8 @@ def cluster_by_method(s, task):
                      resolution=task.get('resolution', 1.0),
                      max_events=mev or _METHOD_EVENT_CAP['leiden'],
                      random_state=seed,
-                     fast_graph=bool(task.get('fast_graph', False)))
+                     fast_graph=bool(task.get('fast_graph',
+                                              LEIDEN_FAST_GRAPH_DEFAULT)))
         if 'leiden' in s.data.columns:
             s.data['cluster'] = s.data['leiden']
     elif method == 'flowsom':
@@ -81,7 +84,7 @@ def cluster_by_method(s, task):
         s.data['cluster'] = -1
     else:
         s.cluster(k=task['k'], n_jobs=task['n_jobs'],
-                  max_events=mev,
+                  max_events=mev or _METHOD_EVENT_CAP['phenograph'],
                   vram_admission_gb=task.get('vram_admission_gb', 1.0),
                   random_state=seed,
                   reproducible=bool(task.get('reproducible', True)),
@@ -397,8 +400,8 @@ def shared_cluster_labels(samples, cluster_task, names=None):
     The pooled run clusters a subsample (the pool) of at most --max-events
     events IN TOTAL, an equal share drawn at random from each sample (see
     equal_quota). With no cap, the pool holds as many events as the
-    largest sample, or the method's own cap when that is smaller (Leiden
-    200,000, FlowSOM 50,000; _METHOD_EVENT_CAP), so the clustering itself
+    largest sample, or the method's own cap when that is smaller
+    (PhenoGraph and Leiden 200,000, FlowSOM 50,000; _METHOD_EVENT_CAP), so the clustering itself
     costs no more than the largest per-sample run. Every event left out of
     the pool then takes the label of its nearest pooled event (1-NN), as
     --max-events already does inside one sample. FlowSOM instead labels

@@ -70,8 +70,9 @@ def test_pruning_is_off_by_default(data):
             != snn_jaccard_graph(X, K, prune=True).ecount())
 
 
-def test_run_leiden_default_is_unchanged_by_the_new_parameter(data):
-    """The option exists; the default path must be byte-identical to before."""
+def test_run_leiden_default_is_the_fast_graph(data):
+    """The default is the pruned graph (the dense one needed about 21 GB at
+    200,000 events); fast_graph=False still gives the older dense result."""
     pytest.importorskip('leidenalg')
     X, _ = data
     df = pd.DataFrame(X, columns=CH)
@@ -83,7 +84,7 @@ def test_run_leiden_default_is_unchanged_by_the_new_parameter(data):
                      random_state=42, **kw)
         return s.data['leiden'].to_numpy()
 
-    assert np.array_equal(labels(), labels(fast_graph=False))
+    assert np.array_equal(labels(), labels(fast_graph=True))
 
 
 def test_fast_graph_actually_changes_the_result(data):

@@ -116,8 +116,9 @@ def offer_parts(res, kind):
                 'action_tip': "Open the release page in your web browser to "
                 "download the new installer. Nothing is installed until you "
                 "run it. Cancel keeps the version you have."}
-    how = ("a 'git pull' in your source checkout" if kind == 'git'
-           else "'pip install --upgrade' from GitHub")
+    how = ("git in your source checkout (a 'git pull', or a switch to "
+           "the main branch when the branch it is on has been merged)"
+           if kind == 'git' else "'pip install --upgrade' from GitHub")
     return {'text': head + f"\n\nUpdate now via {how}? OpenFlo must be "
             "restarted afterward.",
             'notes': notes, 'link': link, 'action': "Update",

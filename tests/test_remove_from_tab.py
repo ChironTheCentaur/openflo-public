@@ -70,7 +70,8 @@ def test_sample_menu_on_a_tab_offers_both_removals_side_by_side(
     ed, _ = three_samples
     menu = right_click_row(ed, monkeypatch, menu_popups, sample_iid('s1'))
     assert menu_labels(submenu(menu, SAMPLE_REMOVE)) == [
-        "Clear gates (keep sample)", SAMPLE_TAB_ONLY, SESSION]
+        "Clear gates (keep sample)", "Delete all gates (whole tab)…",
+        SAMPLE_TAB_ONLY, SESSION]
     everything = _all_labels(menu)
     assert everything.count(SAMPLE_TAB_ONLY) == 1   # not again elsewhere
     assert TAB_ONLY not in everything               # nor in the old form
@@ -222,20 +223,24 @@ def test_remove_from_tab_on_all_changes_nothing(three_samples):
     assert ed.status_var.get().startswith("The All tab always holds")
 
 
+def _tab_entry_off(ed):
+    """Whether the tray's Remove > Remove from tab entry is greyed."""
+    return ed._remove_menu.entrycget(ed.REMOVE_FROM_TAB, 'state') == 'disabled'
+
+
 def test_button_state_follows_a_loaded_session(three_samples):
     ed, _ = three_samples
     ts = ed._tabs()
-    btn = ed._tab_remove_btn
     saved = ts.to_dict()
-    # Saved with tab A open: loads with the button on.
+    # Saved with tab A open: loads with the entry on.
     ed._switch_tab(0)
-    assert btn.instate(['disabled'])
+    assert _tab_entry_off(ed)
     ed._restore_tabs_state(saved)
-    assert ed._tabs().current == 1 and not btn.instate(['disabled'])
+    assert ed._tabs().current == 1 and not _tab_entry_off(ed)
     # Saved with All open: loads with it off.
     saved['current'] = 0
     ed._restore_tabs_state(saved)
-    assert ed._tabs().active.is_all and btn.instate(['disabled'])
+    assert ed._tabs().active.is_all and _tab_entry_off(ed)
 
 
 def test_remove_from_tab_button_is_off_on_all_and_works_on_a_tab(
@@ -247,24 +252,24 @@ def test_remove_from_tab_button_is_off_on_all_and_works_on_a_tab(
     # Deleting a tab that shows samples asks first (test_delete_tab).
     monkeypatch.setattr(messagebox, 'askyesno', lambda *a, **k: True)
     ts = ed._tabs()
-    btn = ed._tab_remove_btn
-    assert btn.winfo_manager() == 'pack'               # it is in the tray
-    assert 'Remove' in [str(w.cget('text')) for w in btn.master.winfo_children()
-                        if w.winfo_class() == 'TButton']
-    assert not btn.instate(['disabled'])               # tab A is open
+    menu = ed._remove_menu
+    assert ed._remove_mb.winfo_manager() == 'pack'     # it is in the tray
+    assert str(ed._remove_mb.cget('menu')) == str(menu)
+    assert menu_labels(menu) == ['Remove from tab', 'Remove from session…']
+    assert not _tab_entry_off(ed)                      # tab A is open
     ed._switch_tab(0)
-    assert btn.instate(['disabled'])                   # All tab
+    assert _tab_entry_off(ed)                          # All tab
     ed._switch_tab(1)
-    assert not btn.instate(['disabled'])
+    assert not _tab_entry_off(ed)
     ed.gate_tv.selection_set(sample_iid('s2'))
-    btn.invoke()
+    menu.invoke(ed.REMOVE_FROM_TAB)
     assert set(ts.active.members) == {'s1'}
     assert 's2' in ed._samples and ts.tabs[0].has_sample('s2')
-    # Deleting every extra tab leaves All, and the button goes off again.
+    # Deleting every extra tab leaves All, and the entry goes off again.
     while len(ts.tabs) > 1:
         ed._switch_tab(len(ts.tabs) - 1)
         ed._delete_tab()
-    assert ts.active.is_all and btn.instate(['disabled'])
+    assert ts.active.is_all and _tab_entry_off(ed)
 
 
 def test_every_remove_entry_has_help_and_the_menu_shows_it(
@@ -295,7 +300,9 @@ def test_every_remove_entry_has_help_and_the_menu_shows_it(
     assert '<<MenuSelect>>' in menu.bind()
 
 
-def test_both_buttons_have_hover_tips(monkeypatch):
+def test_both_removals_have_help(monkeypatch):
+    """The tray's Remove dropdown has a tip naming both removals, and each
+    entry has status-bar help saying what it keeps."""
     import tkinter as tk
 
     import openflo.gui as gui
@@ -313,8 +320,9 @@ def test_both_buttons_have_hover_tips(monkeypatch):
     try:
         assert "every tab" in tips['Remove']
         assert "Remove from tab" in tips['Remove']
-        assert "stay loaded" in tips['Remove from tab']
-        assert ed2._tab_remove_btn.instate(['disabled'])  # opens on All
+        assert "stay loaded" in ed2._MENU_ITEM_HELP['Remove from tab']
+        assert "can't be undone" in ed2._MENU_ITEM_HELP['Remove from session…']
+        assert _tab_entry_off(ed2)                    # opens on All
     finally:
         root2.destroy()
 

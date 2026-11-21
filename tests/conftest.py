@@ -732,6 +732,10 @@ def in_git_checkout(root=_REPO_ROOT):
 
 
 def pytest_configure(config):
+    # A hung test writes every thread's stack where CI prints it (Windows
+    # workers' output is lost): tests/_hang_report.py.
+    from tests import _hang_report
+    _hang_report.register(config)
     config.addinivalue_line(
         'markers', 'checkout_only: checks the git checkout itself (CI '
         'workflows, git index); skipped in an unpacked sdist')

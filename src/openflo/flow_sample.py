@@ -31,7 +31,7 @@ from .acquisition_qc import AcquisitionQC
 from .autoclean import find_scatter_channel as find_scatter_channel
 from .cell_cycle import analyze_dna, assign_phase, find_dna_channel
 from .channel_names import is_time_channel
-from .channel_roles import default_cluster_channels
+from .channel_roles import MAX_EMBED_COMPONENTS, check_embed_components, default_cluster_channels
 from .channel_roles import is_excluded as _is_excluded
 from .channel_roles import is_scatter as _is_scatter
 from .channel_transforms import (
@@ -45,6 +45,11 @@ from .channel_transforms import (
     transform_values,
 )
 from .channel_transforms import inverse_transform_values as inverse_transform_values
+from .cluster_caps import (
+    LEIDEN_DEFAULT_MAX_EVENTS,
+    LEIDEN_FAST_GRAPH_DEFAULT,
+    PHENOGRAPH_DEFAULT_MAX_EVENTS,
+)
 from .cluster_graph import phenograph_prints_to_log as _phenograph_prints_to_log
 from .cluster_graph import phenograph_sort_jobs as _phenograph_sort_jobs
 from .cluster_graph import snn_jaccard_graph as _snn_jaccard_graph
@@ -113,7 +118,7 @@ from .wsp_reader import WspReader
 from .wsp_writer import WspWriter as WspWriter
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Mapping, Sequence
+    from collections.abc import Callable, Iterable, Mapping, Sequence
     from pathlib import Path
 
     from matplotlib.axes import Axes
@@ -1498,10 +1503,12 @@ class FlowSample:
     # ── Clustering ────────────────────────────────────────────────────────────
 
     def cluster(self, channels: Iterable[str] | None = None, k: int = 30,
-                n_jobs: int = 1, max_events: int | None = None,
+                n_jobs: int = 1,
+                max_events: int | None = PHENOGRAPH_DEFAULT_MAX_EVENTS,
                 use_gpu: bool | str = 'auto', vram_admission_gb: float = 1.0,
                 random_state: int = 42, reproducible: bool = True,
-                resolution: float = 1.0) -> FlowSample:
+                resolution: float = 1.0,
+                checkpoint: Callable[[], None] | None = None) -> FlowSample:
         """Phenograph-style clustering.
 
         channels
@@ -1513,6 +1520,10 @@ class FlowSample:
             If set and the sample exceeds it, cluster a random sub-sample and
             assign the remaining events to their nearest labelled neighbour
             via a KD-tree (caps peak memory regardless of sample size).
+            Default 200,000 (``PHENOGRAPH_DEFAULT_MAX_EVENTS``), as
+            ``run_leiden``: uncapped, a sample of about a million events
+            needs about 10 GB on one core at k=30 (``cluster_caps``). None clusters
+            every event.
 
         use_gpu
             'auto' (default): use the GPU clustering path when RAPIDS is
@@ -1566,6 +1577,11 @@ class FlowSample:
             says so. ``self.cluster_settings`` records the resolution that
             was applied (None when it was not).
 
+        checkpoint
+            Called with no arguments before the clustering and again before
+            the labels are written. An exception it raises stops the run
+            there, with nothing written: the Cluster dialog's Cancel.
+
         The GPU branch uses cuML NearestNeighbors + cuGraph Louvain on the
         kNN graph. Any GPU failure (OOM, CUDA error, missing kit) falls back
         to CPU Phenograph for the same call — the result is always written.
@@ -1584,6 +1600,8 @@ class FlowSample:
         size_label = (f"{max_events:,} (subsample of {n:,})"
                       if sub_idx is not None else f"{n:,}")
         shape = f"{size_label} × {len(avail)}, k={k}"
+        if checkpoint is not None:
+            checkpoint()
 
         sub_comm, Q, backend, route = None, -1.0, 'CPU', 'louvain'
         if _should_try_gpu(reproducible, use_gpu, vram_admission_gb):
@@ -1595,6 +1613,8 @@ class FlowSample:
                 X_cluster, k, n_jobs, reproducible, random_state,
                 resolution, shape)
 
+        if checkpoint is not None:
+            checkpoint()
         self.cluster_settings = _phenograph_settings(
             k, route, backend, random_state, resolution)
 
@@ -1710,23 +1730,34 @@ class FlowSample:
     def _store_embedding(self, emb: Any, sub_mask: np.ndarray,
                          prefix: str) -> np.ndarray:
         # emb is Any: pacmap's untyped fit_transform reads as possibly None.
-        """Write a 2-D embedding back as ``{prefix}1`` / ``{prefix}2``
-        columns, NaN where the row wasn't embedded. Returns the embedding."""
+        """Write an embedding back as ``{prefix}1``, ``{prefix}2`` (and
+        ``{prefix}3`` for a 3-D one) columns, NaN where the row wasn't
+        embedded. A component a previous, larger run wrote (``{prefix}3``
+        after a 2-D run) is removed: it belongs to another embedding. Returns
+        the embedding."""
         emb = np.asarray(emb)
-        self.data[f'{prefix}1'] = np.nan
-        self.data[f'{prefix}2'] = np.nan
-        self.data.loc[sub_mask, f'{prefix}1'] = emb[:, 0]
-        self.data.loc[sub_mask, f'{prefix}2'] = emb[:, 1]
+        dims = emb.shape[1] if emb.ndim == 2 else 2
+        for i in range(1, dims + 1):
+            self.data[f'{prefix}{i}'] = np.nan
+            self.data.loc[sub_mask, f'{prefix}{i}'] = emb[:, i - 1]
+        stale = [f'{prefix}{i}' for i in range(dims + 1, MAX_EMBED_COMPONENTS + 1)
+                 if f'{prefix}{i}' in self.data.columns]
+        if stale:
+            self.data.drop(columns=stale, inplace=True)
         return emb
 
     def run_umap(self, channels: Iterable[str] | None = None,
                  n_neighbors: int = 30, min_dist: float = 0.3,
                  sample_n: int | None = 100_000,
-                 random_state: int = 42) -> FlowSample:
+                 random_state: int = 42,
+                 n_components: int = 2) -> FlowSample:
         """Compute a seeded UMAP embedding (GPU when available, else CPU); returns self.
 
-        The coordinates go into ``self.umap_coords``. Without umap-learn on the CPU path
-        it logs a warning and returns self unchanged."""
+        ``n_components`` is 2 (``UMAP1``/``UMAP2``) or 3 (also ``UMAP3``, for
+        the 3D plot). The coordinates go into ``self.umap_coords``. Without
+        umap-learn on the CPU path it logs a warning and returns self
+        unchanged."""
+        n_components = check_embed_components(n_components)
         X, sub_mask, avail = self._embedding_input(
             channels, sample_n, random_state)
 
@@ -1740,6 +1771,7 @@ class FlowSample:
                 X_gpu = cudf.DataFrame(X[sub_mask].astype(np.float32))
                 emb   = np.array(
                     _CumlUMAP(n_neighbors=n_neighbors, min_dist=min_dist,
+                              n_components=n_components,
                               random_state=random_state).fit_transform(X_gpu)
                 )
                 log.info(f"  UMAP complete [GPU — {GPU_NAME}].")
@@ -1784,6 +1816,7 @@ class FlowSample:
             with numba_threads.parallel_kernels():
                 emb = np.asarray(
                     umap_lib.UMAP(n_neighbors=n_neighbors, min_dist=min_dist,
+                                  n_components=n_components,
                                   random_state=random_state).fit_transform(
                                       X[sub_mask]))
             log.info("  UMAP complete [CPU].")
@@ -2167,8 +2200,9 @@ class FlowSample:
 
     def run_leiden(self, channels: Iterable[str] | None = None,
                    n_neighbors: int = 30, resolution: float = 1.0,
-                   max_events: int | None = 200_000, random_state: int = 42,
-                   fast_graph: bool = False) -> FlowSample:
+                   max_events: int | None = LEIDEN_DEFAULT_MAX_EVENTS,
+                   random_state: int = 42,
+                   fast_graph: bool = LEIDEN_FAST_GRAPH_DEFAULT) -> FlowSample:
         """Leiden community detection — the current standard for high-dimensional
         spectral cytometry.
 
@@ -2180,7 +2214,11 @@ class FlowSample:
         ``max_events`` events and the rest assigned to their nearest labelled
         neighbour (KD-tree). ``channels=None`` clusters one column per marker
         (``default_cluster_channels``). ``n_neighbors`` defaults to 30, as in
-        the app, the CLI and ``cluster_jointly`` (15 up to 2.7.0). Requires
+        the app, the CLI and ``cluster_jointly`` (15 up to 2.7.0).
+        ``fast_graph`` (default True) links each event only to its own
+        nearest neighbors, as PhenoGraph does; False is the older dense
+        graph, which needed about 21 GB at 200,000 events (``cluster_caps``)
+        and gives different clusters. Requires
         ``igraph`` + ``leidenalg`` (declared dependencies). Returns self."""
         try:
             # igraph is an availability probe here: the graph itself is built
@@ -2251,7 +2289,8 @@ class FlowSample:
     def run_louvain(self, channels: Iterable[str] | None = None,
                     n_neighbors: int = 30, restarts: int = 5,
                     max_events: int | None = 200_000, random_state: int = 42,
-                    fast_graph: bool = False) -> FlowSample:
+                    fast_graph: bool = LEIDEN_FAST_GRAPH_DEFAULT
+                    ) -> FlowSample:
         """Louvain community detection — deterministic, unlike PhenoGraph's.
 
         Same algorithm as ``cluster(reproducible=False)``, but it cannot give a

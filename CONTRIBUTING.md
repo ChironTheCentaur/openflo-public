@@ -149,7 +149,8 @@ of these:
   stopped, refused or went quiet, the code was wrong, or the network failed):
   `TransferError` subclasses `Exception`; its `reason` says which, in words
   the window turns into a message.
-- **A cancelled background job**: `JobCancelled` and `Cancelled` subclass
+- **A cancelled background job**: `JobCancelled`, `Cancelled` and
+  `ClusteringCanceled` (the Cluster dialog's Cancel) subclass
   `Exception` directly. They are control flow, not errors, so
   `except OpenFloError` must not swallow them.
 

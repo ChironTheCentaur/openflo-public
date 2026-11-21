@@ -34,6 +34,7 @@ from .cli_run import run
 from .cli_samples import fcs_path, normalise_groups
 from .cli_unmix import run_batch_unmix
 from .cli_wsp import export_pipeline_workspace
+from .cluster_caps import LEIDEN_FAST_GRAPH_DEFAULT
 from .flow_sample import FlowSample
 
 
@@ -228,6 +229,7 @@ def _run_analysis(args, trial_dirs, groups, fmo_sets, labels,
         n_metaclusters = args.n_metaclusters,
         reproducible   = not args.no_reproducible,
         fast_graph     = args.fast_graph,
+        umap_components = args.umap_components,
         dpi            = args.dpi,
         fmo_percentile = args.fmo_percentile,
         labels         = labels,
@@ -310,9 +312,11 @@ def main() -> int:
 
     labels = _channel_labels(args, groups, trial_dirs)
     pairs = parse_pairs(args.pairs)
-    if args.fast_graph and args.cluster_method != 'leiden':
+    if args.fast_graph is not None and args.cluster_method != 'leiden':
         print(f"[!] --fast-graph applies only to --cluster-method leiden; "
               f"{args.cluster_method} runs on its usual graph.", flush=True)
+    if args.fast_graph is None:           # not given: Leiden's default graph
+        args.fast_graph = LEIDEN_FAST_GRAPH_DEFAULT
 
     # Apply the user's palette choice process-wide before any plot is
     # rendered. Worker processes start fresh and copy it from this process

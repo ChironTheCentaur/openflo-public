@@ -94,16 +94,19 @@ def _add_cluster_args(ap: argparse.ArgumentParser) -> None:
                          'clusters. PhenoGraph applies it only on its default '
                          'reproducible route, not with --no-reproducible '
                          "(its Louvain has no resolution).")
-    # Opt-in, off by default: it changes the clusters. Same switch as the
-    # app's "Fast graph" box (tool_window.FAST_GRAPH_TIP).
-    ap.add_argument('--fast-graph', action='store_true', dest='fast_graph',
-                    help='Leiden only (--cluster-method leiden). Link only '
-                         "each cell's actual nearest neighbors, as "
-                         'PhenoGraph and Seurat do, instead of the default '
-                         'graph. Clustering runs about 6-9x faster and can '
-                         'split populations the default merges, but the '
-                         'clusters differ, so results are not comparable '
-                         'with runs made without it. Off by default.')
+    # On by default (cluster_caps.LEIDEN_FAST_GRAPH_DEFAULT); --no-fast-graph
+    # gives the older dense graph. Same switch as the app's "Fast graph" box
+    # (tool_window.FAST_GRAPH_TIP). None = not given (cli_main resolves it).
+    ap.add_argument('--fast-graph', action=argparse.BooleanOptionalAction,
+                    default=None, dest='fast_graph',
+                    help='Leiden only (--cluster-method leiden). On by '
+                         "default: link only each cell's actual nearest "
+                         'neighbors, as PhenoGraph and Seurat do. '
+                         '--no-fast-graph uses the older graph that links '
+                         'every pair of cells sharing a neighbor: about 9x '
+                         'the memory (about 21 GB at 200000 events) and 6-9x '
+                         'slower, with different clusters; use it only to '
+                         'compare with runs made that way.')
     ap.add_argument('--n-metaclusters', type=int,
                     default=FLOWSOM_DEFAULT_METACLUSTERS,
                     dest='n_metaclusters',
@@ -114,17 +117,18 @@ def _add_cluster_args(ap: argparse.ArgumentParser) -> None:
                          'a rare population into a neighbor.')
     ap.add_argument('--max-events',  type=int, default=0, dest='max_events',
                     help='Cap clustering at this many events per sample '
-                         '(0 = no cap). When exceeded, the sample is '
-                         'clustered on a random sub-sample and the rest are '
-                         'assigned via nearest-neighbor. Recommended: '
-                         '~500000. The group comparisons cluster every '
-                         'sample of an analysis together, once (once per '
-                         'trial folder with --batch-mode independent), on '
-                         'at most this many events IN TOTAL (an equal share '
-                         'from each '
-                         'sample; with 0, as many as the largest sample '
-                         'holds, at most 200000 for Leiden and 50000 for '
-                         'FlowSOM), and assign the rest the same way.')
+                         '(0 = each method\'s own cap: 200000 for PhenoGraph '
+                         'and Leiden, 50000 for FlowSOM; a number above the '
+                         'largest sample clusters every event). When '
+                         'exceeded, the sample is clustered on a random '
+                         'sub-sample and the rest are assigned via '
+                         'nearest-neighbor. The group comparisons cluster '
+                         'every sample of an analysis together, once (once '
+                         'per trial folder with --batch-mode independent), '
+                         'on at most this many events IN TOTAL (an equal '
+                         'share from each sample; with 0, as many as the '
+                         'largest sample holds, at most the method\'s own '
+                         'cap), and assign the rest the same way.')
     ap.add_argument('--admission-ram', type=float, default=4.0, dest='admission_gb',
                     help='Free RAM (GB) required before submitting a new '
                          'parallel worker. 0 disables admission control.')
@@ -304,6 +308,14 @@ def _add_run_args(ap: argparse.ArgumentParser) -> None:
                     help='Random seed used for sample subsampling and '
                          'UMAP. Held constant across every sample in a '
                          'trial so results are reproducible across runs.')
+    ap.add_argument('--umap-components', type=int, choices=(2, 3), default=2,
+                    dest='umap_components',
+                    help='Components of each group\'s UMAP (default 2). 3 '
+                         'also writes <group>_umap3d.gif, one turn of the '
+                         '3-D embedding colored by cluster, and '
+                         '<group>_umap3d.csv with UMAP1-UMAP3 per event; the '
+                         'PNG then shows UMAP1 against UMAP2 of that 3-D '
+                         'embedding.')
     ap.add_argument('--dpi', type=_dpi, default=DEFAULT_DPI,
                     help='Resolution of every PNG figure written (default '
                          f'{DEFAULT_DPI}, the app\'s Preferences default; '

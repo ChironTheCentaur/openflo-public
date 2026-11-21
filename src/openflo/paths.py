@@ -283,11 +283,50 @@ def portable_rel_path(path: str, folder: str) -> str | None:
     return rel.replace(_osp.sep, '/')
 
 
+# A raw file's identity, saved with its sample (``fcs_id``): its size and
+# a hash of its first bytes, which hold the FCS header and keywords (date,
+# times, event count, file name) and the first events. Enough to tell two
+# recordings of one file name apart, and cheap on a slow USB stick.
+FCS_ID_HEAD = 1 << 16
+_FCS_IDS: dict[tuple[str, int, int], dict[str, Any]] = {}
+
+
+def fcs_identity(path: str) -> dict[str, Any] | None:
+    """``{'bytes': size, 'head': hash}`` of the file at `path` (see
+    ``FCS_ID_HEAD``), or None when it cannot be read. Remembered per path,
+    size and modification time, so saving again does not read it again."""
+    try:
+        st = os.stat(path)
+        key = (_osp.abspath(path), st.st_size, st.st_mtime_ns)
+        if key in _FCS_IDS:
+            return dict(_FCS_IDS[key])
+        with open(path, 'rb') as fh:
+            head = fh.read(FCS_ID_HEAD)
+    except OSError:
+        return None
+    out = {'bytes': st.st_size,
+           'head': hashlib.sha256(head).hexdigest()[:32]}
+    if len(_FCS_IDS) > 4096:
+        _FCS_IDS.clear()
+    _FCS_IDS[key] = out
+    return dict(out)
+
+
+def same_fcs_identity(saved: Any, found: Mapping[str, Any] | None) -> bool:
+    """Whether a saved ``fcs_id`` names the file whose identity is
+    `found`."""
+    return (isinstance(saved, Mapping) and found is not None
+            and saved.get('bytes') == found['bytes']
+            and saved.get('head') == found['head'])
+
+
 def relink_hints(path: str, session_dir: str, *, kept_rel: str = '',
-                 kept_from: str = '') -> dict[str, str]:
+                 kept_from: str = '') -> dict[str, Any]:
     """The portable relink keys a session saved in `session_dir` writes for
-    a sample at `path`: ``basename`` (its file name) and, when it can be
-    worked out, ``rel_path`` (relative to the session's folder, ``/``
+    a sample at `path`: ``basename`` (its file name), ``fcs_id`` (the
+    file's identity, ``fcs_identity``, when it is there to read; a sample
+    whose file is missing keeps the one it was saved with) and, when it can
+    be worked out, ``rel_path`` (relative to the session's folder, ``/``
     separators; see ``session_open.resolve_sample_path`` for the reading).
 
     A sample whose raw file was not found keeps the ``rel_path`` it was
@@ -305,7 +344,8 @@ def relink_hints(path: str, session_dir: str, *, kept_rel: str = '',
     if (path and not _osp.isabs(path) and not is_foreign_absolute(path)
             and os.path.isfile(path)):
         path = _osp.abspath(path)
-    out = {'basename': portable_basename(path) if path else ''}
+    out: dict[str, Any] = {
+        'basename': portable_basename(path) if path else ''}
     rel = None
     if kept_rel and kept_from:
         rel = portable_rel_path(portable_join(kept_from, kept_rel),
@@ -314,6 +354,9 @@ def relink_hints(path: str, session_dir: str, *, kept_rel: str = '',
         rel = portable_rel_path(path, session_dir)
     if rel is not None:
         out['rel_path'] = rel
+    ident = fcs_identity(path) if path and _osp.isfile(path) else None
+    if ident is not None:
+        out['fcs_id'] = ident
     return out
 
 

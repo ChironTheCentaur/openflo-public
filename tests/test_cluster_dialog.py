@@ -173,7 +173,7 @@ def test_dialog_with_all_markers_selected_passes_none():
         next(w for w in _walk(dlg) if isinstance(w, ttk.Button)
              and w.cget('text') == 'Run').invoke()
         assert got['channels'] is None and got['method'] == 'phenograph'
-        assert got['k'] == 30 and got['downsample'] == 'Full'
+        assert got['k'] == 30 and got['downsample'] == 'Default'
     finally:
         root.destroy()
 
@@ -698,12 +698,12 @@ def test_custom_events_per_sample_refuses_what_is_below_the_floor_or_not_whole()
                 f'{MIN_CUSTOM_EVENTS}')
             shown = f'(it says “{bad}”)' if bad else '(it is empty)'
             assert shown in errors[0], errors[0]
-        # Full ignores the box, as before.
-        ds.set('Full')
+        # Default ignores the box, as before.
+        ds.set('Default')
         _set(entry, 'abc')
         errors.clear()
         run.invoke()
-        assert not errors and got[-1]['downsample'] == 'Full'
+        assert not errors and got[-1]['downsample'] == 'Default'
         ed._open_cluster_dialog()
         dlg = _dialog(ed, 'Cluster')
         ws = list(_walk(dlg))

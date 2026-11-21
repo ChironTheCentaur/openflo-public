@@ -6,6 +6,93 @@ this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+- **Analyze > 3D plot.** Three channels of one sample, or the three
+  components of a 3D embedding, as a cloud you turn: drag to rotate, scroll
+  to zoom (a touchpad's small scrolls zoom by their share of a wheel
+  notch), Reset view and Front (X/Y). Each axis uses the 2D plot's own
+  scale (log, logicle, symlog, linear, and a set axis range; a range end a
+  log axis cannot show, such as 0, is autoscaled as the 2D plot does), so
+  the front view is the 2D plot of X against Y. Draws what the main plot shows, every
+  event, or one gate; at most 200,000 events, a random subset picked with a
+  seed and said under the plot. Color by 3D density, a channel, a cluster
+  column or a gate. Save PNG, and save one full turn (36 or 72 frames,
+  about six seconds) as a looping GIF, or as an MP4 when ffmpeg is
+  installed: frames are written as they are drawn, at most 1,280 pixels
+  on the long side, and a file already there is replaced only once the
+  new one is whole.
+- **3D UMAP.** The Cluster dialog's UMAP gains a Components box (2 or 3).
+  A 3-component run writes UMAP1-UMAP3, records the count in the audit
+  trail and the saved session, and opens the 3D plot on the embedding,
+  colored by cluster. `openflo-run --umap-components 3` makes each group's
+  UMAP 3D and also writes `<group>_umap3d.gif` (one turn, colored by
+  cluster) and `<group>_umap3d.csv` (UMAP1-UMAP3 per event). Other
+  embeddings stay 2D.
+- **Phone 3D view.** The phone app's plot gains a 3D view button: three
+  channels as a cloud you turn with one finger and pinch to zoom, with
+  Reset and Front (X/Y), each axis on the 2D plot's scale over the
+  sample's whole range. Dots are colored by 3D density with the desktop's
+  smoothing (the same numpy code, no SciPy). At most 100,000 events on
+  Android and 50,000 on iPhone, a seeded random subset said under the view.
+  Save GIF saves one full turn (of the channels picked, once loaded); the
+  view holds still while it is made, and fits the screen again when it
+  turns. If the phone takes the graphics back (the app in the background),
+  the view draws itself again when they return.
+
+### Changed
+- **PhenoGraph clusters at most 200,000 events per sample by default**, as
+  Leiden does; every other event gets the cluster of its nearest
+  clustered event. Uncapped, a sample of about a million events needed
+  several GB on one core and could freeze an 8 GB computer. Applies to the
+  Cluster dialog, `openflo-run` (`--max-events 0` now means each method's
+  own cap; a number above the largest sample clusters every event) and
+  `FlowSample.cluster` (`max_events=None` clusters every event). Samples
+  of 200,000 events or fewer cluster exactly as before.
+- **Cluster dialog: Events / sample.** Full is now Default (each method's
+  own cap) and All events clusters every event. Before a PhenoGraph or
+  Leiden run of more events in one sample than its default, or of more
+  than free memory holds, the dialog asks first and says about how much
+  memory it needs. A Cancel clustering button beside the busy bar stops a
+  run after the step it is on; samples already clustered keep their
+  clusters, and a PhenoGraph sample stopped part way is left unchanged.
+- **Leiden uses the fast graph by default** (each cell linked only to its
+  own nearest neighbors, as PhenoGraph does). The older graph linked every
+  pair of cells sharing a neighbor and needed about 21 GB at Leiden's own
+  200,000-event default; the fast graph needs about 2.4 GB there and runs
+  6-9x faster, but Leiden's clusters differ from earlier runs. Turn Fast
+  graph off (Cluster dialog, Pipeline panel), pass `--no-fast-graph` to
+  `openflo-run` or `fast_graph=False` to `FlowSample.run_leiden` /
+  `run_louvain` to get the older graph; a saved Pipeline run config keeps
+  the setting it was saved with.
+- **Pipeline 'max ev' 0** (every event) still has PhenoGraph and Leiden
+  partition at most 200,000 events of a run unit and give the rest their
+  nearest partitioned event's cluster, as the Cluster dialog's Default does.
+- **Main window controls regrouped.** Above the plot, Display and the
+  downsampling settings (Downsample, Max points, Show cleaned-out events)
+  are now two dropdowns on the Mode row, so the control bar is one row
+  shorter and the plot taller; the gate tools are one button group. Undo
+  and Redo sit beside the Help menu. The Samples & Gates panel has Add and
+  Remove dropdowns on one row, and its buttons are a 3 x 3 grid without
+  Delete all (still in Edit > Delete all gates and the sample right-click
+  Remove menu). Max points takes a typed value through Events > Custom….
+
+### Fixed
+- **Projects open again without unpacking again.** Opening a project
+  archive a second time unpacked every FCS file again into a new
+  "<name> (2)" folder: minutes for a big project on a USB stick. A copy
+  unpacked before is now reused (asked about when its session was saved
+  since); an archive on a removable drive unpacks to the internal
+  ~/.openflo/projects folder; the status line counts the megabytes.
+- **A session finds the samples of the project it came from.** A session
+  copied next to its project (unpacked, or as the archive) on another drive
+  or computer now loads its samples from that project instead of listing
+  them as missing, when they are shown to be the same recordings: a
+  session now saves each raw file's identity (its size and a hash of its
+  header), and an older session's samples are checked by the data digest
+  saved with their numbers. Files that only share a name (instruments reuse file names every
+  day) are never loaded on their own: the missing-files question names the
+  projects holding them and the user picks.
+
 ## [3.1.1] - 2026-11-19
 
 ### Fixed

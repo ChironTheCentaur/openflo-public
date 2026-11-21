@@ -1016,20 +1016,33 @@ def test_workspace_close_hides_panel():
 
 
 def test_max_points_visibility_tracks_downsample():
-    """Max points is shown for Display / Display+data and hidden when Off."""
+    """The Events dropdown's Max points entries (presets and Custom…) are
+    on for Display / Display+data and greyed when Off, and its label shows
+    the cap only while downsampling."""
     root, ed, _gui = _editor_or_skip()
+    menu = ed._events_menu
+    first = ed._events_cap_index()
+    caps = range(first, first + len(ed._EVENTS_CAP_PRESETS) + 1)
+
+    def states():
+        return {menu.entrycget(i, 'state') for i in caps}
     try:
+        assert menu.entrycget(first, 'label') == '20,000'
+        assert menu.entrycget(caps[-1], 'label') == 'Custom…'
         ed._ds_mode_var.set('Display only'); ed._on_ds_mode_changed()
-        root.update_idletasks()
-        assert ed._mp_combo.winfo_manager() == 'pack'
+        assert states() == {'normal'}
+        assert ed._events_mb.cget('text') == 'Events: Display · 60k'
         ed._ds_mode_var.set('Off'); ed._on_ds_mode_changed()
-        root.update_idletasks()
-        assert ed._mp_combo.winfo_manager() == ''
-        # Restore path: setting the booleans + sync hides it too.
+        assert states() == {'disabled'}
+        assert ed._events_mb.cget('text') == 'Events: Off'
+        ed._ds_mode_var.set('Display + data'); ed._on_ds_mode_changed()
+        assert states() == {'normal'}
+        # Restore path: setting the booleans + sync greys them too.
         ed.ds_display_var.set(False); ed.ds_propagate_var.set(False)
         ed._sync_ds_mode_var(); ed._update_ds_visibility()
         assert ed._ds_mode_var.get() == 'Off'
-        assert ed._mp_combo.winfo_manager() == ''
+        assert states() == {'disabled'}
+        assert ed._events_mb.cget('text') == 'Events: Off'
     finally:
         try:
             root.destroy()

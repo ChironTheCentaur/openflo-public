@@ -19,6 +19,7 @@ from .cli_groups import group_spec_problems, sample_file_problems
 from .cli_independent import run_independent
 from .cli_plots import show_saved_group_plots
 from .cli_samples import normalise_groups
+from .cluster_caps import LEIDEN_FAST_GRAPH_DEFAULT
 from .som_kernel import FLOWSOM_DEFAULT_METACLUSTERS
 
 
@@ -198,7 +199,9 @@ def run(trial_dirs, out_dir, groups, fmo_sets=None, batch_mode='independent',
         cytonorm_control='',
         cluster_method='phenograph', resolution=1.0,
         n_metaclusters=FLOWSOM_DEFAULT_METACLUSTERS,
-        reproducible=True, qc=False, dpi=DEFAULT_DPI, fast_graph=False):
+        reproducible=True, qc=False, dpi=DEFAULT_DPI,
+        fast_graph=LEIDEN_FAST_GRAPH_DEFAULT,
+        umap_components=2):
     """Run the full pipeline for a list of user-defined sample groups.
 
     groups
@@ -213,8 +216,12 @@ def run(trial_dirs, out_dir, groups, fmo_sets=None, batch_mode='independent',
 
     fast_graph
         Leiden only: cluster on the pruned neighbour graph (PhenoGraph and
-        Seurat's form) instead of the default dense one. Faster, but the
-        clusters differ. Off by default.
+        Seurat's form, the default) or, False, the older dense one, which
+        needs about 9x the memory and gives different clusters.
+
+    umap_components
+        2 (default) or 3: each group's UMAP is 3-D, and a turntable GIF and
+        a UMAP1-3 CSV are written beside its PNG (cli_plots.run_group_umap).
 
     qc
         Run acquisition QC (FlowSample.run_qc) on every file as it loads.
@@ -225,6 +232,9 @@ def run(trial_dirs, out_dir, groups, fmo_sets=None, batch_mode='independent',
     the new set out (the run still finishes every trial).
     """
 
+    # A bad count fails here, not inside the UMAP after clustering ran.
+    from .channel_roles import check_embed_components
+    umap_components = check_embed_components(umap_components)
     trial_dirs = _clean_trial_dirs(trial_dirs)
 
     if fmo_sets is None:
@@ -283,7 +293,8 @@ def run(trial_dirs, out_dir, groups, fmo_sets=None, batch_mode='independent',
     _cluster_cfg = {'method': cluster_method, 'resolution': resolution,
                     'n_metaclusters': n_metaclusters,
                     'reproducible': reproducible,
-                    'fast_graph': bool(fast_graph)}
+                    'fast_graph': bool(fast_graph),
+                    'umap_components': umap_components}
     if batch_mode == 'concatenate':
         published = run_concatenated(
             trial_dirs, out_dir, groups, fmo_sets,

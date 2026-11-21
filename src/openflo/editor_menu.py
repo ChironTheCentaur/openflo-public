@@ -347,6 +347,7 @@ class MenuMixin(EditorMixin):
         anam.add_separator()
         for lbl, cmd in (("Cluster…", self._open_cluster_dialog),
                          ("Compare embeddings…", self._open_dr_compare),
+                         ("3D plot…", self._open_view3d),
                          ("Cell cycle…", self._open_cell_cycle_dialog),
                          ("Proliferation…", self._open_proliferation),
                          ("Trajectory…", self._open_trajectory_window),

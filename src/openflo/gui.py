@@ -106,6 +106,7 @@ from .theme import (  # noqa: E402  (shared palette / figure helpers)
     theme_parts,
 )
 from .ui_logic import (  # noqa: E402  (pure, Tk-free UI logic — safe at top)
+    accel,
     short_label,
 )
 from .ui_style import apply_theme as _apply_theme  # noqa: E402  (ttk theming)
@@ -744,8 +745,15 @@ class ViewGateEditorWindow(tk.Toplevel, AnalysisMixin, AuditMixin,
 
         # ── Menubar strip: its own compact row under the title bar (the native
         # Win32 menubar can't be dark-themed). Populated in _build_menubar.
-        self._menubar_frame = ttk.Frame(self, padding=(4, 1))
-        self._menubar_frame.grid(row=0, column=0, columnspan=2, sticky='ew')
+        # The strip holds the six menus and, right after Help, Undo and
+        # Redo (Sky 11-20: "next to help"). They sit in a frame of their own
+        # beside the menus' frame, so the menus' frame still holds only the
+        # six menu buttons a menubar rebuild replaces.
+        strip = ttk.Frame(self, padding=(4, 1))
+        strip.grid(row=0, column=0, columnspan=2, sticky='ew')
+        self._menubar_frame = ttk.Frame(strip)
+        self._menubar_frame.pack(side='left')
+        self._build_undo_redo_buttons(strip)
 
         # ── Main horizontal split: [ Samples & Gates | plot + workspace ].
         # Each section is its own draggable pane (drag the sashes to resize),
@@ -773,54 +781,79 @@ class ViewGateEditorWindow(tk.Toplevel, AnalysisMixin, AuditMixin,
         left.columnconfigure(0, weight=1)
         return left
 
-    # The widest the tray's button bar may be on one row. Past it the
-    # buttons go on two rows, so the side panel stays at most a third of
-    # the default 1500 px window (the plot's control bar needs the rest).
-    # Aqua's buttons are wider than Linux's or Windows': there one row of
-    # the five is about 570 px.
-    _SAMPLE_IO_ROW_MAX = 480
+    def _build_undo_redo_buttons(self, strip):
+        """Undo and Redo, right of the menus in the menubar strip. Ctrl+Z /
+        Ctrl+Y and Edit > Undo / Redo do the same."""
+        bar = ttk.Frame(strip)
+        bar.pack(side='left', padx=(6, 0))
+        self._undo_btn = ttk.Button(bar, text="↶ Undo", width=0,
+                                    style='Toolbutton', command=self._undo)
+        self._undo_btn.pack(side='left')
+        self._tip(self._undo_btn, "Undo the last change (gates, populations, "
+                  "workspace). Ctrl+Z.")
+        self._redo_btn = ttk.Button(bar, text="↷ Redo", width=0,
+                                    style='Toolbutton', command=self._redo)
+        self._redo_btn.pack(side='left', padx=(2, 0))
+        self._tip(self._redo_btn, "Redo the last undone change. Ctrl+Y.")
+
+    def _dropdown_menu_help(self, menu):
+        """A dropdown of the main window behaves like the menubar's menus:
+        flat borders, and each entry's help in the status bar on hover."""
+        try:
+            menu.configure(bd=0, relief='flat', activeborderwidth=0)
+            menu.bind('<<MenuSelect>>', self._on_menu_select, add='+')
+            menu.bind('<Unmap>', self._on_menu_unmap, add='+')
+        except tk.TclError:
+            pass
+
+    # Entries of the tray's Remove dropdown, by position.
+    REMOVE_FROM_TAB, REMOVE_FROM_SESSION = 0, 1
 
     def _build_sample_io_bar(self, left):
-        """The centred sample I/O bar at the top of the left panel."""
+        """The centred sample I/O bar at the top of the left panel: an Add
+        dropdown, a Remove dropdown and Pop out, on one row."""
         leftbar = ttk.Frame(left)
         leftbar.grid(row=0, column=0, columnspan=2, pady=(0, 4))   # centred
-        # Its rows first, so the buttons (children of leftbar, packed into
-        # a row) stack above them and show.
-        self._sample_io_rows = (ttk.Frame(leftbar), ttk.Frame(leftbar))
-        _addb = ttk.Button(leftbar, text="＋ Add FCS", command=self._add_samples,
-                           style='Side.TButton', width=0)
-        self._tip(_addb, "Load one or more .fcs files (or drag them onto the "
-                  "window). Files group by day/trial automatically.")
-        _csvb = ttk.Button(leftbar, text="Load CSV…",
-                           command=self._load_processed_data,
-                           style='Side.TButton', width=0)
-        self._tip(_csvb, "Load a processed-data CSV (e.g. an exported table "
-                  "with cluster / UMAP columns) as a sample.")
-        _rmb = ttk.Button(leftbar, text="Remove", command=self._remove_selected,
-                           style='Side.TButton', width=0)
-        self._tip(_rmb, "Remove from session: unload the selected sample(s) "
-                  "and their gates from every tab. This can't be undone. "
-                  "To keep a sample loaded and only take it off the open "
-                  "tab, use Remove from tab.")
-        self._tab_remove_btn = ttk.Button(
-            leftbar, text="Remove from tab",
-            command=self._remove_rows_from_tab,
-            style='Side.TButton', width=0)
-        self._tip(self._tab_remove_btn,
-                  "Take the selected sample(s) or gate(s) off the open tab "
-                  "only. They stay loaded, in the All tab and any other tab "
-                  "that has them. (Off on the All tab, which always shows "
-                  "every loaded sample.)")
+        self._add_mb = ttk.Menubutton(leftbar, text="＋ Add",
+                                      style='Side.TMenubutton')
+        addm = tk.Menu(self._add_mb, tearoff=0)
+        addm.add_command(label="Add FCS…", command=self._add_samples,
+                         accelerator=accel("Ctrl+Shift+A"))
+        addm.add_command(label="Load CSV…", command=self._load_processed_data)
+        addm.add_command(label="Load example dataset",
+                         command=self._load_example_data)
+        self._add_mb['menu'] = addm
+        self._dropdown_menu_help(addm)
+        self._add_menu = addm
+        self._add_mb.pack(side='left')
+        self._tip(self._add_mb, "Add FCS files (or drag them onto the "
+                  "window; files group by day/trial automatically), load a "
+                  "processed-data CSV, or load the example dataset.")
+        self._remove_mb = ttk.Menubutton(leftbar, text="Remove",
+                                         style='Side.TMenubutton')
+        rmm = tk.Menu(self._remove_mb, tearoff=0)
+        rmm.add_command(label="Remove from tab",
+                        command=self._remove_rows_from_tab)
+        rmm.add_command(label="Remove from session…",
+                        command=self._remove_selected)
+        self._remove_mb['menu'] = rmm
+        self._dropdown_menu_help(rmm)
+        self._remove_menu = rmm
+        self._remove_mb.pack(side='left', padx=(4, 0))
+        self._tip(self._remove_mb,
+                  "Remove from tab: take the selected sample(s) or gate(s) "
+                  "off the open tab only; they stay loaded (off on the All "
+                  "tab, which shows every loaded sample). Remove from "
+                  "session: unload the selected sample(s) and their gates "
+                  "from every tab; this can't be undone.")
         self._sync_tab_remove_button()
         self._left_popbtn = ttk.Button(leftbar, text="Pop out",
                                        command=self._toggle_left_popout,
                                        style='Side.TButton', width=0)
+        self._left_popbtn.pack(side='left', padx=(4, 0))
         self._tip(self._left_popbtn, "Float this Samples & Gates panel into its "
                   "own window (drag to a second monitor); click Dock or close "
                   "it to re-dock.")
-        self._sample_io_buttons = (_addb, _csvb, _rmb, self._tab_remove_btn,
-                                   self._left_popbtn)
-        self._fit_sample_io_bar()
         # "On top" toggle — packed only while popped out (see _toggle_left_popout).
         self._left_ontop_var = tk.BooleanVar(value=False)
         self._left_ontop_cb = ttk.Checkbutton(
@@ -828,26 +861,6 @@ class ViewGateEditorWindow(tk.Toplevel, AnalysisMixin, AuditMixin,
             command=self._apply_left_ontop)
         self._tip(self._left_ontop_cb,
                   "Keep this floating panel above the main window.")
-
-    def _fit_sample_io_bar(self):
-        """Lay the tray's buttons on one row, or, when one row would be
-        wider than ``_SAMPLE_IO_ROW_MAX``, on two: loading and Pop out
-        above, the two removes below."""
-        add, csv, rm, tab_rm, pop = self._sample_io_buttons
-        top, bottom = self._sample_io_rows
-        one_row = (sum(b.winfo_reqwidth() for b in self._sample_io_buttons)
-                   + 4 * (len(self._sample_io_buttons) - 1))
-        if one_row <= self._SAMPLE_IO_ROW_MAX:
-            rows = ((top, (add, csv, rm, tab_rm, pop)),)
-        else:
-            rows = ((top, (add, csv, pop)), (bottom, (rm, tab_rm)))
-        for b in self._sample_io_buttons:
-            b.pack_forget()
-        bottom.pack_forget()
-        for i, (row, buttons) in enumerate(rows):
-            row.pack(side='top', pady=(4 if i else 0, 0))
-            for j, b in enumerate(buttons):
-                b.pack(in_=row, side='left', padx=(4 if j else 0, 0))
 
     def _build_gate_tree(self, left):
         """Tab strip, find box and the samples-and-gates tree. Returns the
@@ -937,61 +950,45 @@ class ViewGateEditorWindow(tk.Toplevel, AnalysisMixin, AuditMixin,
 
     def _build_side_buttons(self, left):
         """The side panel's action-button grid, tip line and separator."""
-        # Bottom action buttons: a 3-wide grid of equal columns. The gate ops
-        # (Delete gate .. Populations…, then Undo/Redo sharing one cell) fill the first two
-        # rows and the analysis tools the next two. Five columns made the side
-        # panel ~730px wide at the default window, half of it, and clipped the
-        # plot's control bar; three columns of compact buttons keep the panel
-        # near 390px so the plot stays the main thing on screen.
+        # Bottom action buttons: a 3 x 3 grid of equal columns, read in
+        # workflow order: gate editing, analysis, output. Undo / Redo live
+        # in the menubar strip; Delete all gates is in Edit and in the
+        # tree's right-click Remove menu, out of reach of a stray click
+        # (Sky 11-20). Five columns made the side panel ~730px wide at the
+        # default window, half of it, and clipped the plot's control bar;
+        # three columns of compact buttons keep the panel near 390px.
         gb_row = ttk.Frame(left)
         gb_row.grid(row=3, column=0, columnspan=2, sticky='ew')
         for c in range(3):
             gb_row.columnconfigure(c, weight=1, uniform='gb')
+        self._side_buttons = {}
 
         def _grid_btn(i, lbl, cmd, tip):
             r, c = divmod(i, 3)
             b = ttk.Button(gb_row, text=lbl, command=cmd,
                            style='Side.TButton', width=0)
-            # 'nsew': a row holding a two-line label (the beta / to-be-added
-            # tags) is taller, and its one-line neighbours fill it too.
+            # 'nsew': a row holding a two-line label is taller, and its
+            # one-line neighbours fill it too.
             b.grid(row=r, column=c, sticky='nsew',
                    padx=(0 if c == 0 else 3, 0), pady=(0 if r == 0 else 3, 0))
             self._tip(b, tip)
+            self._side_buttons[lbl] = b
 
+        self._zoom_mode_var = tk.BooleanVar(value=False)
+        # The Pipeline and the Layout editor are beta, which their tips say.
         for _i, (_lbl, _cmd, _tt) in enumerate((
                 ("Delete gate", self._clear_selected_gate,
                  "Delete the selected gate(s) and their descendants (the "
                  "sample stays). On a sample/trial row, clears its gates."),
-                ("Delete all", self._clear_all,
-                 "Remove every gate from all samples (samples are kept). In a "
-                 "tab: the samples and gates that tab shows."),
-                ("Auto-clean", self._create_autoclean_gate,
-                 "Add an auto-clean gate (margins / debris / dead cells) to the "
-                 "active sample; toggle its methods under it in the tree."),
                 ("Copy gates…", self._open_copy_gates_dialog,
                  "Copy the active sample's gates onto other samples (as "
                  "calculations, optionally frozen to fixed coordinates)."),
+                ("Auto-clean", self._create_autoclean_gate,
+                 "Add an auto-clean gate (margins / debris / dead cells) to the "
+                 "active sample; toggle its methods under it in the tree."),
                 ("Populations…", self._open_clusters_menu,
                  "Import label/cluster columns as populations, or manage "
-                 "imported populations."))):
-            _grid_btn(_i, _lbl, _cmd, _tt)
-        # Undo / Redo share the sixth cell, so the gate ops are two full rows.
-        _ur = ttk.Frame(gb_row)
-        _ur.grid(row=1, column=2, sticky='ew', padx=(3, 0), pady=(3, 0))
-        _ur.columnconfigure((0, 1), weight=1, uniform='ur')
-        _ub = ttk.Button(_ur, text="Undo", width=0, style='Side.TButton',
-                         command=self._undo)
-        _ub.grid(row=0, column=0, sticky='ew')
-        self._tip(_ub, "Undo the last change (gates, populations, workspace).")
-        _rb2 = ttk.Button(_ur, text="Redo", width=0, style='Side.TButton',
-                          command=self._redo)
-        _rb2.grid(row=0, column=1, sticky='ew', padx=(3, 0))
-        self._tip(_rb2, "Redo the last undone change.")
-        self._zoom_mode_var = tk.BooleanVar(value=False)
-        # Analysis / tooling actions, two rows under the gate ops (moved out of
-        # the top bar: they're tools, not plot/workspace controls). The
-        # Pipeline and the Layout editor are beta, which their tips say.
-        for _i, (_lbl, _cmd, _tiptext) in enumerate((
+                 "imported populations."),
                 ("Cluster…", self._open_cluster_dialog,
                  "Unsupervised clustering (PhenoGraph / Leiden / FlowSOM) with "
                  "an optional embedding (UMAP / t-SNE / …); imports the result "
@@ -1001,9 +998,6 @@ class ViewGateEditorWindow(tk.Toplevel, AnalysisMixin, AuditMixin,
                  "MFI for each gated population, and a Frequencies by group "
                  "tab that compares the samples in groups, with column-table "
                  "exports ready to paste into a statistics program."),
-                ("Pipeline", self._open_pipeline_workspace,
-                 "Beta. Show/hide the Pipeline panel: batch co-embedded "
-                 "clustering runs over groups of samples."),
                 ("Report…", self._export_report,
                  "Export an HTML analysis report of the current gates, plots, "
                  "and stats."),
@@ -1011,8 +1005,11 @@ class ViewGateEditorWindow(tk.Toplevel, AnalysisMixin, AuditMixin,
                  "Beta. Layout editor: place plots of gated "
                  "populations, stats tables and text on a page, drag and "
                  "resize them, then preview or export the same page for "
-                 "every sample."))):
-            _grid_btn(6 + _i, _lbl, _cmd, _tiptext)
+                 "every sample."),
+                ("Pipeline", self._open_pipeline_workspace,
+                 "Beta. Show/hide the Pipeline panel: batch co-embedded "
+                 "clustering runs over groups of samples."))):
+            _grid_btn(_i, _lbl, _cmd, _tt)
 
         # Discoverability hint (one line; double-click the plot to add a
         # gate).
@@ -1145,7 +1142,8 @@ class ViewGateEditorWindow(tk.Toplevel, AnalysisMixin, AuditMixin,
         return right
 
     def _build_plot_controls(self, right):
-        """The control rows above the plot (rows A to E)."""
+        """The control rows above the plot: channels, how it looks, the
+        gate tools and the tool hint."""
         # Top controls. Each logical group is its own packed sub-row, so the
         # bar WRAPS downward instead of running off the right edge on a narrow
         # window (e.g. with the Pipeline Workspace docked) — otherwise Mode,
@@ -1163,7 +1161,6 @@ class ViewGateEditorWindow(tk.Toplevel, AnalysisMixin, AuditMixin,
         self._build_axes_row(ctrl)
         self._build_mode_row(ctrl)
         self._build_gate_tool_row(ctrl)
-        self._build_display_row(ctrl)
 
         # Row E — tool gesture hint (updates with the active tool).
         self.tool_hint_var = tk.StringVar(value='')
@@ -1234,40 +1231,11 @@ class ViewGateEditorWindow(tk.Toplevel, AnalysisMixin, AuditMixin,
         mode_combo.bind('<<ComboboxSelected>>',
                         lambda *_: self._on_mode_changed())
 
-        # Downsample + Max points, inline with Mode. Max points only appears
-        # (and is only applied) when downsampling is Display / Display+data;
-        # Off draws every event uncapped.
-        ttk.Label(row_b, text="Downsample:").pack(side='left', padx=(12, 4))
-        self.ds_display_var = tk.BooleanVar(value=True)
-        self.ds_propagate_var = tk.BooleanVar(value=False)
-        self._ds_mode_var = tk.StringVar(value='Display only')
-        ds_combo = ttk.Combobox(
-            row_b, textvariable=self._ds_mode_var, state='readonly', width=14,
-            values=['Off', 'Display only', 'Display + data'])
-        ds_combo.pack(side='left')
-        ds_combo.bind('<<ComboboxSelected>>',
-                      lambda *_: self._on_ds_mode_changed())
-        self._tip(ds_combo, "Downsample for comparable overlays. Off: draw all "
-                  "(uncapped). Display only: render the smallest sample's count "
-                  "from each (view only). Display + data: also trim the data, "
-                  "which clustering and statistics then use; setting it back "
-                  "restores every event.")
-        self._mp_label = ttk.Label(row_b, text="Max points:")
-        self.max_points_var = tk.StringVar(value='60000')
-        self._mp_last_good = '60000'    # the cap in use; see _on_max_points_changed
-        self._mp_combo = ttk.Combobox(
-            row_b, textvariable=self.max_points_var, width=8,
-            values=['20000', '60000', '100000', '250000', '500000', 'All'])
-        self._mp_combo.bind('<<ComboboxSelected>>',
-                            lambda *_: self._on_max_points_changed())
-        self._mp_combo.bind('<Return>',
-                            lambda *_: self._on_max_points_changed())
-        self._mp_combo.bind('<FocusOut>',
-                            lambda *_: self._on_max_points_changed())
-        self._tip(self._mp_combo, "Max events drawn per sample (only while "
-                  "downsampling is on). Pick a preset or type a whole number "
-                  "of at least 1,000 (250k works too), then press Enter; "
-                  "'All' removes the cap (slow on millions of events).")
+        # Display (how gates affect the cloud) and Events (downsampling,
+        # the Max points cap, the cleaned-out overlay): one dropdown each,
+        # placed before the mode options so they don't move as Mode does.
+        self._build_display_dropdown(row_b)
+        self._build_events_dropdown(row_b)
 
         ttk.Separator(row_b, orient='vertical').pack(
             side='left', fill='y', padx=8, pady=1)
@@ -1349,11 +1317,16 @@ class ViewGateEditorWindow(tk.Toplevel, AnalysisMixin, AuditMixin,
                          "to move the whole gate, right-click a vertex to delete.",
         }
         self._gate_tool_widgets = []
+        # One segmented group of toggle buttons: narrower than six radio
+        # buttons with their indicators, and reads as one choice.
+        seg = ttk.Frame(row_c)
+        seg.pack(side='left')
         for lbl, val in tools:
-            _rb = ttk.Radiobutton(row_c, text=lbl, value=val,
+            _rb = ttk.Radiobutton(seg, text=lbl, value=val,
                                   variable=self.gate_tool_var,
-                                  command=self._activate_gate_tool)
-            _rb.pack(side='left', padx=(0, 8))
+                                  command=self._activate_gate_tool,
+                                  style='Toolbutton')
+            _rb.pack(side='left')
             self._tip(_rb, lambda v=val:
                       self._tool_tip_text(_tool_tips.get(v, '')))
             self._gate_tool_widgets.append(_rb)
@@ -1365,7 +1338,7 @@ class ViewGateEditorWindow(tk.Toplevel, AnalysisMixin, AuditMixin,
             "scored. You review and keep, adjust or delete them like any gate."))
         self._gate_tool_widgets.append(_ag_btn)
         _ag_btn.pack(
-            side='left', padx=(4, 0))
+            side='left', padx=(10, 0))
         # Apply a new gate (drawn or auto) to every displayed sample, not just
         # the active one. (With this off, selecting several samples in the tree
         # also fans a new gate out to all of them.)
@@ -1378,42 +1351,104 @@ class ViewGateEditorWindow(tk.Toplevel, AnalysisMixin, AuditMixin,
             "not just the active one. (When off, selecting multiple samples in "
             "the tree also applies a new gate to all of them.)"))
 
-    def _build_display_row(self, ctrl):
-        """Row D: gate display mode and the cleaned-out events overlay."""
-        # Row D — display mode (how gates affect the cloud) + the auto-clean
-        # overlay, centred together (moved here from the left panel).
-        row_d = ttk.Frame(ctrl)
-        row_d.pack(pady=(4, 0))
-        ttk.Label(row_d, text="Display:").pack(side='left', padx=(0, 4))
-        self._display_radios = {}
-        for _val, _lbl, _tt in (
-                ('all', 'All events',
-                 "Show every event; gates just outline regions."),
-                ('highlight', 'Highlight gated',
-                 "Gray base population + each enabled gate's events drawn in "
-                 "its own color (forks shown side by side)."),
-                ('filter', 'Filter to gated',
-                 "Show only events that fall inside the enabled gates.")):
-            _dr = ttk.Radiobutton(row_d, text=_lbl, value=_val,
-                                  variable=self.gate_display_var,
-                                  command=self._on_gate_display_changed)
-            _dr.pack(side='left', padx=(0, 8))
-            self._tip(_dr, _tt)
-            self._display_radios[_val] = _dr
+    def _build_display_dropdown(self, row):
+        """Display: All events / Highlight gated / Filter to gated, as one
+        dropdown. Its entries are greyed with no real gates
+        (_sync_display_mode_availability); Ctrl+1/2/3 and View > Display
+        set the same variable."""
+        ttk.Label(row, text="Display:").pack(side='left', padx=(12, 4))
+        mb = ttk.Menubutton(row, width=15)
+        menu = tk.Menu(mb, tearoff=0,
+                       postcommand=self._sync_display_mode_availability)
+        for val, lbl in self._DISPLAY_LABELS.items():
+            menu.add_radiobutton(label=lbl, value=val,
+                                 variable=self.gate_display_var,
+                                 command=self._on_gate_display_changed)
+        self._dropdown_menu_help(menu)
+        mb['menu'] = menu
+        mb.pack(side='left')
+        self._display_mb = mb
+        self._display_dd_menu = menu
+        self._tip(mb, "How gates show on the plot. All events: every event, "
+                  "gates just outline regions. Highlight gated: a gray base "
+                  "with each enabled gate's events in its own color. Filter "
+                  "to gated: only events inside the enabled gates. "
+                  "Ctrl+1 / 2 / 3.")
+        self.gate_display_var.trace_add(
+            'write', lambda *_: self._sync_display_button())
+        self._sync_display_button()
         # Greyed from the start on an empty editor, not only after a replot.
         self.after_idle(self._sync_display_mode_availability)
-        ttk.Separator(row_d, orient='vertical').pack(
+
+    def _sync_display_button(self):
+        """Show the current display mode on the Display dropdown."""
+        mb = getattr(self, '_display_mb', None)
+        if mb is None:
+            return
+        val = self.gate_display_var.get()
+        text = self._DISPLAY_LABELS.get(val, 'All events')
+        try:
+            mb.configure(text=text)
+        except tk.TclError:
+            pass
+
+    # Positions in the Events dropdown (_build_events_dropdown).
+    _EVENTS_DS_MODES = ('Off', 'Display only', 'Display + data')
+    _EVENTS_CAP_PRESETS = ('20000', '60000', '100000', '250000', '500000',
+                           'All')
+
+    def _build_events_dropdown(self, row):
+        """Events: downsampling (Off / Display only / Display + data), the
+        Max points cap (presets and Custom…) and the cleaned-out events
+        overlay, in one dropdown whose label shows the mode and cap."""
+        ttk.Separator(row, orient='vertical').pack(
             side='left', fill='y', padx=8, pady=1)
+        self.ds_display_var = tk.BooleanVar(value=True)
+        self.ds_propagate_var = tk.BooleanVar(value=False)
+        self._ds_mode_var = tk.StringVar(value='Display only')
+        self.max_points_var = tk.StringVar(value='60000')
+        self._mp_last_good = '60000'    # the cap in use; see _on_max_points_changed
         self.show_removed_var = tk.BooleanVar(value=False)
-        self._removed_cb = ttk.Checkbutton(
-            row_d, text="⚠ Show cleaned-out events",
-            variable=self.show_removed_var,
-            command=lambda: self._schedule_replot(0))
-        self._removed_cb.pack(side='left')
-        self._tip(self._removed_cb, "Overlay the events auto-clean removed (in "
-                  "red) on top of the plot, so cleaning artifacts stay visible "
-                  "against the full sample.")
-        # Reflect the initial downsample mode (hides Max points when Off).
+        # One width: the label changes with the settings, and a growing
+        # button pushed the mode options off the row at 1366 px. The width
+        # is set from the font (_sync_events_button).
+        mb = ttk.Menubutton(row)
+        menu = tk.Menu(mb, tearoff=0, postcommand=self._update_ds_visibility)
+        menu.add_command(label="Downsample", state='disabled')
+        for mode in self._EVENTS_DS_MODES:
+            menu.add_radiobutton(label=mode, value=mode,
+                                 variable=self._ds_mode_var,
+                                 command=self._on_ds_mode_changed)
+        menu.add_separator()
+        menu.add_command(label="Max points per sample", state='disabled')
+        for cap in self._EVENTS_CAP_PRESETS:
+            menu.add_radiobutton(
+                label=cap if cap == 'All' else f"{int(cap):,}", value=cap,
+                variable=self.max_points_var,
+                command=self._on_max_points_changed)
+        menu.add_command(label="Custom…", command=self._ask_max_points)
+        menu.add_separator()
+        menu.add_checkbutton(label="⚠ Show cleaned-out events",
+                             variable=self.show_removed_var,
+                             command=lambda: self._schedule_replot(0))
+        self._dropdown_menu_help(menu)
+        mb['menu'] = menu
+        mb.pack(side='left')
+        self._events_mb = mb
+        self._events_menu = menu
+        self._tip(mb, "Events drawn. Downsample, for comparable overlays: "
+                  "Off draws all (uncapped); Display only renders the "
+                  "smallest sample's count from each (view only); Display + "
+                  "data also trims the data, which clustering and statistics "
+                  "then use, and setting it back restores every event. Max "
+                  "points caps the events drawn per sample while "
+                  "downsampling is on ('All' is slow on millions of "
+                  "events). Show cleaned-out events overlays what auto-clean "
+                  "removed, in red; ⚠ on the button means it is on.")
+        for var in (self._ds_mode_var, self.max_points_var,
+                    self.show_removed_var):
+            var.trace_add('write', lambda *_: self._sync_events_button())
+        # Reflect the initial downsample mode (greys Max points when Off).
         self._update_ds_visibility()
 
     def _build_plot_area(self, right):
@@ -1576,10 +1611,22 @@ class ViewGateEditorWindow(tk.Toplevel, AnalysisMixin, AuditMixin,
                   "Show the folder of the file just saved.")
         # Indeterminate "working" bar — shown during long background jobs
         # (clustering, UMAP/embeddings) so a slow run reads as busy, not hung.
-        self._busy_bar = ttk.Progressbar(statusbar, mode='indeterminate',
+        busy_box = ttk.Frame(statusbar)
+        busy_box.grid(row=0, column=1)
+        self._busy_bar = ttk.Progressbar(busy_box, mode='indeterminate',
                                          length=150)
-        self._busy_bar.grid(row=0, column=1, padx=(10, 10))
+        self._busy_bar.grid(row=0, column=0, padx=(10, 10))
         self._busy_bar.grid_remove()
+        # Clustering's Cancel, beside the busy bar while a run is going
+        # (AnalysisMixin._show_clustering_cancel / _end_clustering_busy).
+        self._cluster_cancel_btn = ttk.Button(
+            busy_box, text="Cancel clustering", style='Side.TButton',
+            width=0, command=self._cancel_clustering)
+        self._tip(self._cluster_cancel_btn,
+                  "Stop the clustering run. It stops after the step now "
+                  "running; samples already clustered keep their clusters.")
+        self._cluster_cancel_btn.grid(row=0, column=1, padx=(0, 10))
+        self._cluster_cancel_btn.grid_remove()
         # A long job started from the main window (cell cycle, population
         # export, ...): its progress and a Cancel button, while it runs.
         from .async_task import BusyStrip
@@ -2360,6 +2407,7 @@ class ViewGateEditorWindow(tk.Toplevel, AnalysisMixin, AuditMixin,
         "Find sample or gate": "Jump to the Find box above the samples and gates.",
         "Delete gate": "Delete the selected gate and its children.",
         "Delete all gates": "Remove every gate from all samples (in a tab: the samples and gates it shows).",
+        "Delete all gates (whole tab)…": "Remove every gate from every sample this tab shows (on the All tab: all samples), not only this one. Asks first; Undo puts them back.",
         "Copy gates to…": "Copy the active sample's gates onto other samples (in a tab: the samples it shows).",
         "Populations": "Import label / cluster columns as populations.",
         "Gates": "Add a singlet, FMO, auto-clean, boolean or combination gate, or set a gate's coordinates.",
@@ -2401,6 +2449,7 @@ class ViewGateEditorWindow(tk.Toplevel, AnalysisMixin, AuditMixin,
         "Expression…": "Per-channel expression across samples.",
         "Group comparison…": "Kruskal-Wallis + pairwise tests across trial groups.",
         "Compare embeddings…": "Run UMAP / t-SNE / PHATE side by side on a sample.",
+        "3D plot…": "Three channels or a 3D UMAP as a cloud you turn; save PNG, GIF or MP4.",
         "Methods & provenance…": "Paper-ready methods paragraph + reproducibility manifest.",
         "Absolute counts…": "Counting-bead cells/µL calculator.",
         "Voltage optimization…": "PMT voltage / stain-index titration with recommendations.",
@@ -2467,6 +2516,11 @@ class ViewGateEditorWindow(tk.Toplevel, AnalysisMixin, AuditMixin,
         # Samples & Gates right-click menu
         "Remove from this tab": "Take the selected rows off this tab only; the samples stay loaded, in the All tab and any other tab that has them.",
         "Remove trial from this tab": "Take this trial's samples off this tab only; they stay loaded, in the All tab and any other tab that has them.",
+        "Remove from tab": "Take the selected sample(s) or gate(s) off the open tab only; they stay loaded in the All tab and any other tab that has them. Off on the All tab.",
+        "Remove from session…": "Unload the selected sample(s) and their gates from every tab. This can't be undone; to keep them loaded, use Remove from tab.",
+        "Downsample": "Off draws every event; Display only draws the smallest sample's count from each; Display + data also trims the data clustering and statistics use.",
+        "Max points per sample": "The most events drawn per sample while downsampling is on; All removes the cap (slow on millions of events).",
+        "Custom…": "Type a Max points cap: a whole number of at least 1,000 (250k or 1.5m also work), or All.",
         "From session (all tabs)…": "Unload the selected sample(s) and their gates from every tab. This can't be undone; to keep them loaded, use Remove ▸ From this tab.",
         "From this tab": "Take the selected sample(s) off this tab only; they stay loaded, in the All tab and any other tab that has them.",
         "Clear gates (keep sample)": "Delete every gate of the selected sample; the sample stays loaded.",

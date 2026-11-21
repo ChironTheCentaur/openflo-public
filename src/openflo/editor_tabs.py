@@ -718,15 +718,16 @@ class TabsMixin(EditorMixin):
         self._schedule_replot(0)
 
     def _sync_tab_remove_button(self):
-        """Enable the tray's Remove from tab button only on a tab other than
-        All (the All tab always holds every loaded sample)."""
-        b = getattr(self, '_tab_remove_btn', None)
-        if b is None:
+        """Enable the tray's Remove > Remove from tab entry only on a tab
+        other than All (the All tab always holds every loaded sample)."""
+        menu = getattr(self, '_remove_menu', None)
+        if menu is None:
             return
         try:
-            b.state(['disabled'] if self._tabs().active.is_all
-                    else ['!disabled'])
-        except tk.TclError:                           # button gone with the window
+            menu.entryconfigure(
+                self.REMOVE_FROM_TAB,
+                state='disabled' if self._tabs().active.is_all else 'normal')
+        except tk.TclError:                           # menu gone with the window
             pass
 
     def _tab_copy_cascade(self, menu, label="Copy to tab"):

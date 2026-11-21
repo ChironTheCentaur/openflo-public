@@ -123,6 +123,8 @@ def _write_every_analysis_column(sample):
     for prefix in ('UMAP', 'TSNE', 'TRIMAP', 'PACMAP', 'PHATE'):
         sample.data[f'{prefix}1'] = rng.normal(0.0, 5.0, n)
         sample.data[f'{prefix}2'] = rng.normal(0.0, 5.0, n)
+    # A 3-component UMAP (Cluster dialog Components 3, --umap-components 3).
+    sample.data['UMAP3'] = rng.normal(0.0, 5.0, n)
 
 
 # EXCLUDE_CLUSTER entries that are INPUT channels rather than analysis

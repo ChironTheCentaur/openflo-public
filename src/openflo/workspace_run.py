@@ -16,6 +16,11 @@ import logging
 import os
 import re
 
+from .cluster_caps import (
+    LEIDEN_DEFAULT_MAX_EVENTS,
+    LEIDEN_FAST_GRAPH_DEFAULT,
+    PHENOGRAPH_DEFAULT_MAX_EVENTS,
+)
 from .errors import note as note_handled
 from .fcs_containers import item_set_number
 from .gate_lineage import root_first
@@ -330,10 +335,12 @@ DEFAULT_RUN_CFG = {
     # Prune the shared-nearest-neighbour graph to kNN pairs (what PhenoGraph
     # and Seurat do) instead of linking every pair sharing a neighbour. ~6-14x
     # fewer edges and 6-9x faster Leiden, and it recovers the planted cluster
-    # count where the dense graph merges populations. OFF by default because it
-    # changes every existing clustering result, and on heavily overlapping
+    # count where the dense graph merges populations. ON by default since the
+    # dense graph needed about 21 GB at 200,000 events (cluster_caps); a
+    # saved run config keeps the value it was saved with, so an older one
+    # (False) still reproduces its results. On heavily overlapping
     # populations the two disagree substantially. See cluster_graph.snn_jaccard_graph.
-    'fast_graph': False,
+    'fast_graph': LEIDEN_FAST_GRAPH_DEFAULT,
     # PhenoGraph's Louvain is non-deterministic per process, so the same data
     # re-run gave different labels (ARI 0.76 on overlapping populations). Its
     # binaries seed with srand(time(NULL)+getpid()) -- the PID half is assigned
@@ -1501,20 +1508,26 @@ def _cluster_sample(sample, method: str, channels: list, cfg: dict,
                     k: int, n: int, seed) -> str:
     """Cluster ``sample`` in place with ``method``; returns the label column
     the method writes."""
+    # Data is already subsampled to max_events upstream. With 'max ev' 0
+    # (every event) the graph methods still partition at most their own
+    # cap and assign the rest to their nearest partitioned event, as the
+    # Cluster dialog's Default does: uncapped, a million-event unit needed
+    # several GB on one core (cluster_caps).
     if method == 'leiden':
-        # Data is already subsampled to max_events upstream, so pass n to
-        # disable a second subsample (run_leiden types max_events as int).
         sample.run_leiden(channels=channels, n_neighbors=k,
                           resolution=float(cfg.get('resolution', 1.0)),
-                          max_events=n, random_state=seed,
-                          fast_graph=bool(cfg.get('fast_graph', False)))
+                          max_events=min(n, LEIDEN_DEFAULT_MAX_EVENTS),
+                          random_state=seed,
+                          fast_graph=bool(cfg.get(
+                              'fast_graph', LEIDEN_FAST_GRAPH_DEFAULT)))
         return 'leiden'
     if method == 'flowsom':
         nmeta = int(cfg.get('n_metaclusters', FLOWSOM_DEFAULT_METACLUSTERS))
         sample.run_flowsom(channels=channels, n_metaclusters=nmeta,
                            max_events=n, seed=seed)
         return 'flowsom_meta'
-    sample.cluster(channels=channels, k=k, max_events=None,
+    sample.cluster(channels=channels, k=k,
+                   max_events=min(n, PHENOGRAPH_DEFAULT_MAX_EVENTS),
                    random_state=seed,
                    reproducible=bool(cfg.get('reproducible', True)),
                    resolution=float(cfg.get('resolution', 1.0)))

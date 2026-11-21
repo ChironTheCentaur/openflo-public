@@ -535,7 +535,8 @@ def _leiden_labels(df, fluor, resolution=0.5):
 
     from .flow_sample import FlowSample
     s = types.SimpleNamespace(data=df.copy(), fluor_channels=list(fluor))
-    FlowSample.run_leiden(cast('FlowSample', s), resolution=resolution)
+    FlowSample.run_leiden(cast('FlowSample', s), resolution=resolution,
+                          fast_graph=False)  # the graph the golden uses
     return s.data['leiden'].to_numpy()
 
 

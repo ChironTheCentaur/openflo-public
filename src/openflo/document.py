@@ -54,6 +54,10 @@ _PLACEHOLDER_COLOR = '#1f77b4'
 
 # Bins of a density grid along one axis, at most.
 MAX_BINS = 1024
+# The 3D view's default seed and most dots (the phone passes its own cap,
+# scaled to its memory; the desktop's 3D plot draws up to view3d.MAX_EVENTS).
+CLOUD3D_SEED = 42
+CLOUD3D_EVENTS = 100_000
 
 # A sample entry's keys that a save works out again from the sample: those
 # read from a session are dropped first, so a stale one is never kept.
@@ -585,6 +589,11 @@ class Document:
                               trial=meta.get('trial'), stamps=stamps),
                       gates=meta.get('gates'))
             out['samples'].append(name)
+            if p.found_in:
+                out['notes'].append(
+                    f"{name}: its file was not where the session saved it; "
+                    f"loaded from project {os.path.basename(p.found_in)} "
+                    "(the same recording)")
             out['notes'].extend(sample_load_notes(name, s))
         if plan.active in self._samples:
             self._active = plan.active
@@ -1708,6 +1717,63 @@ class Document:
                        hy=ys[hidx].astype(np.float32),
                        h_events=int(hmask.sum()))
         return out
+
+    def cloud3d(self, sample: str, x: str, y: str, z: str, *,
+                gate: str | None = None, x_scale: str | None = None,
+                y_scale: str | None = None, z_scale: str | None = None,
+                max_events: int = CLOUD3D_EVENTS, seed: int = CLOUD3D_SEED,
+                x_range: Sequence[float] | None = None,
+                y_range: Sequence[float] | None = None,
+                z_range: Sequence[float] | None = None) -> dict[str, Any]:
+        """The events of population `gate` as points in a cube for the 3D
+        view: each channel on its display scale (as ``density_events``),
+        over its range (default: the whole sample's extent, as the 2D plot
+        draws it), put on -1..1 so that seen from the front X and Y sit
+        where the 2D plot of `x` against `y` puts them.
+
+        A population larger than `max_events` gives a random subset picked
+        with `seed` (``cloud3d.seeded_subset``: the same seed, the same
+        events). Events outside a given range are left out and counted.
+        Each point is colored by how crowded it is in 3D
+        (``cloud3d.density_values``), spread as the 2D plot spreads its
+        colors. Returns ``{'points', 'c', 'events', 'shown', 'off_axis',
+        'seed', 'x_range', 'y_range', 'z_range', 'unknown'}``: ``points``
+        a float32 ``(shown, 3)`` array, ``c`` float32 in 0..1, ``events``
+        the population's size."""
+        from .cloud3d import density_shade, density_values, normalize, seeded_subset
+        rec = self._get(sample)
+        s = rec.data
+        for ch in (x, y, z):
+            if ch not in s.data.columns:
+                raise DocumentError(f"{sample}: no channel {ch!r}")
+        cap = int(max_events)
+        if cap < 1:
+            raise DocumentError("max_events is at least 1")
+        if int(seed) < 0:
+            raise DocumentError("seed is 0 or more")
+        axes = [self._view_fns(s, ch, sc)[0](s.data[ch].values)
+                for ch, sc in ((x, x_scale), (y, y_scale), (z, z_scale))]
+        ranges = [self._axis_range(v, r)
+                  for v, r in zip(axes, (x_range, y_range, z_range), strict=True)]
+        mask, unknown = self._population(rec, gate)
+        fin = mask.copy()
+        for v in axes:
+            fin &= np.isfinite(v)
+        idx = np.flatnonzero(fin)
+        pick = seeded_subset(idx.size, cap, int(seed))
+        if pick is not None:
+            idx = idx[pick]
+        pts = np.column_stack([normalize(v[idx], r)
+                               for v, r in zip(axes, ranges, strict=True)])
+        inside = np.all(np.abs(pts) <= 1.0, axis=1)
+        pts = pts[inside]
+        c = density_shade(density_values(pts))
+        return {'points': np.ascontiguousarray(pts, dtype=np.float32),
+                'c': c.astype(np.float32), 'events': int(mask.sum()),
+                'shown': int(len(pts)), 'off_axis': int((~inside).sum()),
+                'seed': int(seed), 'x_range': list(ranges[0]),
+                'y_range': list(ranges[1]), 'z_range': list(ranges[2]),
+                'unknown': unknown}
 
     def _population(self, rec: _Sample, gate: str | None
                     ) -> tuple[np.ndarray, str | None]:

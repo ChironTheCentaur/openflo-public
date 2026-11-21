@@ -35,4 +35,4 @@ A gate on a channel a sample does not have, or whose parent is empty, reads NA, 
 
 ## Undo
 
-**Edit > Undo** (Ctrl+Z) and **Edit > Redo** (Ctrl+Y) cover gate changes.
+**Edit > Undo** (Ctrl+Z) and **Edit > Redo** (Ctrl+Y), or the **Undo** and **Redo** buttons beside the Help menu, cover gate changes. **Edit > Delete all gates** (also in a sample's right-click **Remove** menu, as **Delete all gates (whole tab)…**) clears every sample the tab shows; it asks first and can be undone.

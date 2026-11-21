@@ -615,8 +615,9 @@ _MUTATORS = {'retransform', 'apply_transform', 'run_qc', '_apply_comp',
 # and why that is right.
 _EXEMPT = {
     # Off-thread clustering: _finish_clustering / _clustering_error
-    # invalidate on the Tk thread when the run ends.
-    ('editor_analysis.py', 'work'),
+    # invalidate on the Tk thread when the run ends (a canceled run that
+    # wrote nothing ends in _clustering_done without it).
+    ('editor_analysis.py', '_cluster_one'),
     # Load workers build a FRESH sample; _on_loaded drops the name's caches.
     ('editor_loadpool.py', '_load_worker'),
     # A staticmethod _on_loaded calls on the sample that just arrived, after

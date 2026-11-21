@@ -151,13 +151,16 @@ jobs:
         env:
           MPLBACKEND: Agg
           OPENFLO_REQUIRE_GUI: '1'      # see the Linux step for why
-          # A stuck dialog-sweep step writes its report here (a Windows
-          # worker's stderr does not reach this log); printed below.
+          # A stuck dialog-sweep step, or any test still running near its
+          # --timeout (tests/_hang_report.py), writes its report here (a
+          # Windows worker's stderr does not reach this log); printed below.
           OPENFLO_TEST_REPORTS: ${{ runner.temp }}/test-reports
         run: pytest -n auto -q --timeout=900 --timeout-method=thread --durations=15
 
       - name: Show stuck-test reports (Windows)
-        if: failure() && runner.os == 'Windows'
+        # Also when cancelled: a hang pytest-timeout no longer guards (after
+        # a failure) runs until timeout-minutes, which cancels the job.
+        if: (failure() || cancelled()) && runner.os == 'Windows'
         run: Get-ChildItem "${{ runner.temp }}/test-reports" -Filter *.txt -ErrorAction SilentlyContinue | Get-Content
 
       # The full-pipeline subprocess runs in tests/test_cli_e2e.py are opt-in
@@ -219,14 +222,15 @@ jobs:
         env:
           MPLBACKEND: Agg
           OPENFLO_REQUIRE_GUI: '1'      # see the Linux step for why
-          # A stuck dialog-sweep step writes its report here (a Windows
-          # worker's stderr does not reach this log); printed below.
+          # A stuck dialog-sweep step, or any test still running near its
+          # --timeout (tests/_hang_report.py), writes its report here, which
+          # the next step prints (as on Windows).
           OPENFLO_TEST_REPORTS: ${{ runner.temp }}/test-reports
         run: pytest -n auto -q --timeout=900 --timeout-method=thread --durations=15
 
-      - name: Show stuck-test reports (Windows)
-        if: failure() && runner.os == 'Windows'
-        run: Get-ChildItem "${{ runner.temp }}/test-reports" -Filter *.txt -ErrorAction SilentlyContinue | Get-Content
+      - name: Show stuck-test reports (macOS)
+        if: failure() || cancelled()
+        run: cat "${{ runner.temp }}"/test-reports/*.txt 2>/dev/null || true
 
       # The same serial pipeline and clustering-determinism run as the Linux
       # leg: seeded results must also repeat on a third OS.

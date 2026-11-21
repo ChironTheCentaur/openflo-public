@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import os
 import tkinter as tk
+from contextlib import suppress
 from tkinter import messagebox
 
 from .downsample_trim import TRIM_SEED, replay_trim
@@ -43,15 +44,83 @@ def _smallest_size(samples, names):
     return min(sizes) if sizes else None
 
 
+def short_cap(cap, uncapped):
+    """A Max points cap in a few characters: 'all', '1.2k', '60k', '1.5m'."""
+    if cap == uncapped:
+        return 'all'
+    # The unit is picked after rounding to three digits: 999,600 is '1m',
+    # never '1e+03k'.
+    if cap >= 999_500:
+        m = cap / 1_000_000
+        return f"{m:.3g}m" if m < 999.5 else f"{m:.0f}m"
+    return f"{cap / 1000:.3g}k"
+
+
+# Short forms of the downsample modes for the Events dropdown's label.
+EVENTS_SHORT_MODES = {'Off': 'Off', 'Display only': 'Display',
+                      'Display + data': 'Display+data'}
+
+# Caps whose short forms are the widest the Events button is sized for
+# ('999k', '1.23m', '12.3m', '123m', '999m'); a cap past 999m still shows,
+# clipped at the end.
+WIDEST_LABEL_CAPS = (999_499, 1_234_567, 12_345_678, 123_456_789,
+                     999_000_000)
+
+
+def events_label(mode, cap, overlay):
+    """The Events dropdown's label: the downsample mode, the cap (``cap``,
+    an int, or None when the text is not one) while downsampling is on
+    (60k, 1.2m, all), and ⚠ while the cleaned-out overlay is drawn."""
+    from .editor_plot import POINT_CAP_UNCAPPED
+    text = f"Events: {EVENTS_SHORT_MODES.get(mode, mode)}"
+    if mode != 'Off' and cap is not None:
+        text += " · " + short_cap(cap, POINT_CAP_UNCAPPED)
+    if overlay:
+        text += " ⚠"
+    return text
+
+
+def events_button_chars(font):
+    """Width, in the characters a Tk button counts (each the width of a
+    '0' in ``font``), that holds the longest Events label in ``font``,
+    with one character to spare. Measured rather than fixed: the label
+    has symbols and proportional letters, so how many '0's it spans
+    depends on the font (DejaVu Sans needs more than Inter)."""
+    from .editor_plot import POINT_CAP_UNCAPPED
+    zero = max(1, font.measure('0'))
+    widest = max(font.measure(events_label('Display + data', cap, True))
+                 for cap in (*WIDEST_LABEL_CAPS, POINT_CAP_UNCAPPED))
+    return -(-widest // zero) + 1
+
+
+def widget_font(widget):
+    """The font a ttk widget draws its text in: its own ``font`` option
+    when set, else its style's, else TkDefaultFont."""
+    from tkinter import font as tkfont
+    from tkinter import ttk
+    name = ''
+    with suppress(tk.TclError):
+        name = str(widget.cget('font'))
+    if not name:
+        with suppress(tk.TclError):
+            name = str(ttk.Style(widget).lookup(widget.winfo_class(), 'font'))
+    name = name or 'TkDefaultFont'
+    try:
+        return tkfont.nametofont(name, root=widget)
+    except tk.TclError:
+        return tkfont.Font(root=widget, font=name)
+
+
 class DownsampleMixin(EditorMixin):
     """Max-points / down-sample mode controls, visibility sync, and propagation of the display cap across samples."""
 
     def _on_max_points_changed(self):
-        """Max-points control committed (Enter, a preset, or leaving the box):
+        """Max-points cap committed (a preset or Custom… in the Events
+        dropdown):
         refresh the per-sample event counts in the tree (they show
         shown/total) and replot with the new cap. Text that is not a valid
-        cap is refused on the status line and the box goes back to the last
-        valid value, so what it shows is always the cap in use."""
+        cap is refused on the status line and the cap goes back to the last
+        valid value, so what the dropdown shows is always the cap in use."""
         from .editor_plot import POINT_CAP_RULE, parse_point_cap
         text = str(self.max_points_var.get()).strip()
         if parse_point_cap(text) is None:
@@ -124,22 +193,59 @@ class DownsampleMixin(EditorMixin):
             self._on_downsample_propagate_toggled()
 
     def _update_ds_visibility(self):
-        """Max points only makes sense while downsampling is on — show it for
-        Display / Display+data, hide it when Off."""
-        lbl = getattr(self, '_mp_label', None)
-        combo = getattr(self, '_mp_combo', None)
-        if lbl is None or combo is None:
+        """Max points only makes sense while downsampling is on: its entries
+        in the Events dropdown are greyed when Off. Also refreshes the
+        dropdown's label."""
+        menu = getattr(self, '_events_menu', None)
+        if menu is not None:
+            on = self.ds_display_var.get() or self.ds_propagate_var.get()
+            state = 'normal' if on else 'disabled'
+            first = self._events_cap_index()
+            try:
+                for i in range(first, first + len(self._EVENTS_CAP_PRESETS) + 1):
+                    menu.entryconfigure(i, state=state)  # presets + Custom…
+            except tk.TclError:
+                pass
+        self._sync_events_button()
+
+    def _events_cap_index(self):
+        """Menu index of the first Max points preset in the Events dropdown:
+        after its Downsample heading, the modes and a separator, and the
+        Max points heading."""
+        return len(self._EVENTS_DS_MODES) + 3
+
+    def _sync_events_button(self):
+        """The Events dropdown's label (``events_label``: the downsample
+        mode, the cap while downsampling is on, ⚠ while the cleaned-out
+        overlay is drawn). The button keeps one width whatever it says,
+        the width its font needs for the longest label
+        (``events_button_chars``), so no setting widens the control row."""
+        mb = getattr(self, '_events_mb', None)
+        if mb is None:
             return
-        on = self.ds_display_var.get() or self.ds_propagate_var.get()
+        from .editor_plot import parse_point_cap
+        text = events_label(self._ds_mode_var.get(),
+                            parse_point_cap(self.max_points_var.get()),
+                            self.show_removed_var.get())
         try:
-            if on:
-                lbl.pack(side='left', padx=(8, 2))
-                combo.pack(side='left')
-            else:
-                lbl.pack_forget()
-                combo.pack_forget()
+            mb.configure(text=text, width=events_button_chars(widget_font(mb)))
         except tk.TclError:
             pass
+
+    def _ask_max_points(self):
+        """Events > Custom…: type a Max points cap. It goes through the same
+        check as a preset (_on_max_points_changed): a bad entry is refused
+        on the status line and the cap in use is kept."""
+        from tkinter import simpledialog
+
+        from .editor_plot import POINT_CAP_RULE
+        text = simpledialog.askstring(
+            "Max points", POINT_CAP_RULE + ".",
+            initialvalue=str(self.max_points_var.get()), parent=self)
+        if text is None:
+            return
+        self.max_points_var.set(text.strip())
+        self._on_max_points_changed()
 
     def _sync_ds_mode_var(self):
         """Set the dropdown label from the backing booleans (e.g. after a

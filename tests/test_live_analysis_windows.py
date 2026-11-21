@@ -691,17 +691,19 @@ def _display_menu(ed):
 
 def test_highlight_and_filter_are_greyed_with_no_gate(ed):
     settle(ed, 0.3)
-    radios = ed._display_radios
-    assert radios['highlight'].instate(['disabled'])     # empty editor
-    assert radios['filter'].instate(['disabled'])
-    menu = _display_menu(ed)
-    ed.tk.eval(str(menu.cget('postcommand')))             # as it opens
-    assert menu.entrycget(1, 'state') == 'disabled'
-    assert menu.entrycget(2, 'state') == 'disabled'
-    assert menu.entrycget(0, 'state') == 'normal'
+    dd = ed._display_dd_menu                 # the plot bar's dropdown
+    assert dd.entrycget(1, 'state') == 'disabled'        # empty editor
+    assert dd.entrycget(2, 'state') == 'disabled'
+    for menu in (_display_menu(ed), dd):     # View > Display, the dropdown
+        ed.tk.eval(str(menu.cget('postcommand')))         # as it opens
+        assert menu.entrycget(1, 'state') == 'disabled'
+        assert menu.entrycget(2, 'state') == 'disabled'
+        assert menu.entrycget(0, 'state') == 'normal'
     _add(ed, 's1', 1)
-    ed.tk.eval(str(menu.cget('postcommand')))
-    assert menu.entrycget(2, 'state') == 'normal'
+    for menu in (_display_menu(ed), dd):
+        ed.tk.eval(str(menu.cget('postcommand')))
+        assert menu.entrycget(1, 'state') == 'normal'
+        assert menu.entrycget(2, 'state') == 'normal'
 
 
 def test_filter_shortcut_with_no_gate_says_so(ed):

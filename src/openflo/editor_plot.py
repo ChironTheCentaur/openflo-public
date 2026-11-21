@@ -2089,14 +2089,14 @@ class PlotMixin(EditorMixin):
         flow papers draw them: the fluorescence default (logicle) for a
         fluorescence channel -- one stored transformed, or one a loaded
         sample lists as fluorescence -- and linear for everything else:
-        scatter (FSC/SSC), Time, embedding axes (UMAP1/2, TSNE1/2, ...) and
+        scatter (FSC/SSC), Time, embedding axes (UMAP1/2/3, TSNE1/2, ...) and
         other derived columns."""
         if not channel:
             return 'linear'
         cu = str(channel).upper()
-        for p in self._EMBED_AXIS_PREFIXES:
-            if cu.startswith(p) and cu[len(p):] in ('1', '2'):
-                return 'linear'
+        from .channel_roles import embedding_prefix
+        if embedding_prefix(cu) is not None:
+            return 'linear'
         if cu.startswith(('FSC', 'SSC')) or cu == 'TIME':
             return 'linear'
         tm = self._channel_transform.get(channel, 'linear')

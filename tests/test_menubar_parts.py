@@ -158,6 +158,7 @@ MENUS = {
         ('separator',),
         ('command', 'Cluster…', '', '_open_cluster_dialog'),
         ('command', 'Compare embeddings…', '', '_open_dr_compare'),
+        ('command', '3D plot…', '', '_open_view3d'),
         ('command', 'Cell cycle…', '', '_open_cell_cycle_dialog'),
         ('command', 'Proliferation…', '', '_open_proliferation'),
         ('command', 'Trajectory…', '', '_open_trajectory_window'),

@@ -355,10 +355,223 @@ def _git_has_upstream(root):
         return False
 
 
+def _git(root, *args, timeout=60):
+    """Run ``git -C root <args>``; the CompletedProcess, or None when git
+    could not be started or timed out."""
+    try:
+        return subprocess.run(["git", "-C", root, *args],
+                              capture_output=True, text=True, timeout=timeout)
+    except (OSError, subprocess.SubprocessError):
+        return None
+
+
+def _git_ok(root, *args, timeout=60):
+    out = _git(root, *args, timeout=timeout)
+    return out is not None and out.returncode == 0
+
+
+def _git_log(out, lines=6):
+    """The last few lines of a git command's output, for a failure message
+    (the dialog shows only the end of the message)."""
+    if out is None:
+        return ""
+    text = ((out.stdout or "") + (out.stderr or "")).strip()
+    return "\n".join(text.splitlines()[-lines:])
+
+
+def _git_default_branch(root, remote):
+    """The remote's main branch name (``master`` or ``main``), from
+    ``<remote>/HEAD`` when set, else whichever of the two exists; None when
+    neither does."""
+    out = _git(root, "symbolic-ref", "--short", f"refs/remotes/{remote}/HEAD",
+               timeout=5)
+    if out is not None and out.returncode == 0:
+        ref = out.stdout.strip()
+        if ref.startswith(remote + "/"):
+            return ref[len(remote) + 1:]
+    for name in ("master", "main"):
+        if _git_ok(root, "rev-parse", "--verify", "--quiet",
+                   f"refs/remotes/{remote}/{name}", timeout=5):
+            return name
+    return None
+
+
+def _git_tracked_changes(root):
+    """Tracked files with changes not committed ('' when none). Untracked
+    files (a local launcher, a scratch venv) do not count: switching
+    branches keeps them. When git cannot say, it counts as changed, so
+    nothing is switched on a guess."""
+    out = _git(root, "status", "--porcelain", "--untracked-files=no",
+               timeout=30)
+    if out is None or out.returncode != 0:
+        return "(git status failed)"
+    return out.stdout.strip()
+
+
+def _git_operation_in_progress(root):
+    """The git operation left unfinished in this checkout (a rebase,
+    merge, cherry-pick or revert), or '' when there is none."""
+    out = _git(root, "rev-parse", "--git-dir", timeout=5)
+    if out is None or out.returncode != 0:
+        return ""
+    git_dir = out.stdout.strip()
+    if not os.path.isabs(git_dir):
+        git_dir = os.path.join(root, git_dir)
+    for name, what in (("rebase-merge", "rebase"), ("rebase-apply", "rebase"),
+                       ("MERGE_HEAD", "merge"),
+                       ("CHERRY_PICK_HEAD", "cherry-pick"),
+                       ("REVERT_HEAD", "revert")):
+        if os.path.exists(os.path.join(git_dir, name)):
+            return what
+    return ""
+
+
+def _git_branch_in_other_worktree(root, branch):
+    """True when `branch` is checked out in a worktree of this repository.
+    Only asked about a branch this checkout is not on, so a hit is another
+    worktree. Moving the branch there (``checkout -B``, which git 2.43
+    allows) would leave that worktree's files behind its branch."""
+    out = _git(root, "worktree", "list", "--porcelain", timeout=10)
+    if out is None or out.returncode != 0:
+        return False
+    return f"branch refs/heads/{branch}" in out.stdout.splitlines()
+
+
+def _run_git_update(root, repo=PUBLIC_REPO, remote="origin"):
+    """Update a source checkout to the newest ``<remote>/<main branch>``.
+
+    Fetches (pruning branches deleted on GitHub), then:
+
+    - on the main branch: fast-forward it;
+    - on another branch (or a detached HEAD) whose work is all in the main
+      branch, and whose upstream is gone, missing, or also merged: switch to
+      the main branch and fast-forward it. This is the checkout left on a
+      merged pull request's branch after GitHub deleted it, where a plain
+      ``git pull`` fails with "no such ref was fetched";
+    - on a branch with work not yet in the main branch: pull that branch
+      when its upstream still exists, else stop with a plain message.
+
+    Nothing is switched while tracked files have changes."""
+    if not _git_ok(root, "remote", "get-url", remote, timeout=5):
+        return False, (
+            f"This OpenFlo folder has no link to GitHub (no '{remote}' "
+            "remote), so there is nothing to update from.\n\n"
+            "Install the released build instead:\n"
+            f"    pip install -U git+https://github.com/{repo}.git")
+    fetch = _git(root, "fetch", "--prune", remote, timeout=300)
+    if fetch is None or fetch.returncode != 0:
+        return False, ("Could not download the update from GitHub. Check the "
+                       "internet connection and try again.\n\n"
+                       + _git_log(fetch))
+    main = _git_default_branch(root, remote)
+    if main is None:
+        return False, (f"Could not find the main branch on '{remote}'. "
+                       "Nothing was changed.")
+    target = f"{remote}/{main}"
+    busy = _git_operation_in_progress(root)
+    if busy:
+        return False, (f"A git {busy} is not finished in this OpenFlo "
+                       "folder, so Update left it alone.\n\n"
+                       f"Finish or abort the {busy} first, then press Update "
+                       "again.")
+    branch = _git_current_branch(root) or "HEAD"
+    if branch != main:
+        return _update_off_main(root, main, target, branch)
+    return _fast_forward_main(root, main, target)
+
+
+def _update_off_main(root, main, target, branch):
+    """:func:`_run_git_update` for a checkout on another branch or a
+    detached HEAD: pull a live development branch, switch a merged one to
+    `main`, or say why neither is done."""
+    merged = _git_ok(root, "merge-base", "--is-ancestor", "HEAD", target,
+                     timeout=30)
+    upstream_live = _git_has_upstream(root)
+    upstream_merged = upstream_live and _git_ok(
+        root, "merge-base", "--is-ancestor", "@{u}", target, timeout=30)
+    where = ("a detached commit" if branch == "HEAD"
+             else f"branch '{branch}'")
+    if upstream_live and not (merged and upstream_merged):
+        # A development branch still on GitHub: bring it up to date.
+        out = _git(root, "pull", "--ff-only", timeout=300)
+        if out is not None and out.returncode == 0:
+            return True, _git_log(out, 12) or "Up to date."
+        return False, (f"Could not update {where}. Nothing was "
+                       "switched.\n\n" + _git_log(out))
+    if not merged:
+        # An upstream is set but no longer exists after the prune.
+        gone = ("was deleted on GitHub and " if branch != "HEAD"
+                and _git_ok(root, "config", f"branch.{branch}.merge",
+                            timeout=5) else "")
+        save = ("Save that work on a branch first:\n"
+                "    git switch -c my-work\n"
+                if branch == "HEAD" else "")
+        return False, (
+            f"This OpenFlo folder is on {where}, which {gone}has work "
+            f"that is not in {main} yet, so Update left it alone.\n\n"
+            f"{save}To use the released code, switch by hand:\n"
+            f"    git checkout {main}\n"
+            "then press Update again.")
+    return _switch_to_main(root, main, target, where)
+
+
+def _switch_to_main(root, main, target, where):
+    """Switch a checkout whose work is all in `target` to the local `main`
+    branch set to `target`, unless something there would be lost."""
+    changes = _git_tracked_changes(root)
+    if changes:
+        return False, (
+            f"This OpenFlo folder is on {where} (its work is already in "
+            f"{main}), but OpenFlo's own files have changes that are not "
+            "saved in git, so Update did not switch.\n\n"
+            "Put the changes aside with:\n"
+            "    git stash\n"
+            "then press Update again, and bring them back with:\n"
+            "    git stash pop")
+    if _git_ok(root, "rev-parse", "--verify", "--quiet",
+               f"refs/heads/{main}", timeout=5) and not _git_ok(
+            root, "merge-base", "--is-ancestor", f"refs/heads/{main}",
+            target, timeout=30):
+        return False, (
+            f"This OpenFlo folder is on {where}, and its {main} has "
+            "commits that are not on GitHub, so Update did not switch.\n\n"
+            f"Switch by hand with:\n    git checkout {main}")
+    if _git_branch_in_other_worktree(root, main):
+        return False, (
+            f"This OpenFlo folder is on {where} (its work is already in "
+            f"{main}), but {main} is open in another folder (a git "
+            "worktree), so Update did not switch.\n\n"
+            f"Update that folder instead, or switch here by hand.")
+    # One step: point the local main branch at the fetched one (it has
+    # nothing of its own, checked above) and check it out. git refuses
+    # before changing anything when a file is in the way.
+    out = _git(root, "checkout", "-B", main, "--track", target,
+               timeout=120)
+    if out is None or out.returncode != 0:
+        return False, (f"Could not switch to {main}. Nothing was "
+                       "changed.\n\n" + _git_log(out))
+    return True, (f"Switched from {where} (its work is already in "
+                  f"{main}) to {main}, now up to date.")
+
+
+def _fast_forward_main(root, main, target):
+    """Fast-forward the checked-out `main` to `target`."""
+    out = _git(root, "merge", "--ff-only", target, timeout=300)
+    if out is not None and out.returncode == 0:
+        return True, _git_log(out, 10) or "Up to date."
+    if not _git_ok(root, "merge-base", "--is-ancestor", "HEAD", target,
+                   timeout=30):
+        return False, (f"Could not bring {main} up to date: it has commits "
+                       "that are not on GitHub. Nothing was changed.")
+    return False, (f"Could not bring {main} up to date. Nothing was "
+                   "changed.\n\n" + _git_log(out))
+
+
 def run_update(kind=None, repo=PUBLIC_REPO, timeout=600):
-    """Run the upgrade command, returning ``(ok: bool, output: str)``. The
+    """Run the upgrade, returning ``(ok: bool, output: str)``. The
     caller should prompt the user to restart OpenFlo afterwards — a running
-    process keeps the old code loaded."""
+    process keeps the old code loaded. A source checkout updates through
+    :func:`_run_git_update`."""
     kind = kind or detect_install_kind()
     if kind == "installer":
         # The installer's Python is upgraded by the next installer, never by
@@ -366,20 +579,7 @@ def run_update(kind=None, repo=PUBLIC_REPO, timeout=600):
         # its marker and its shortcuts.
         return False, INSTALLER_ADVICE
     if kind == "git":
-        # A source checkout on a branch with no upstream (a dev/feature branch,
-        # or detached HEAD) can't `git pull` — surface a clear reason instead of
-        # git's cryptic "no tracking information for the current branch".
-        root = _package_git_root() or "."
-        if not _git_has_upstream(root):
-            branch = _git_current_branch(root) or "(detached HEAD)"
-            return False, (
-                f"This is a development checkout on branch '{branch}', which "
-                "has no upstream to pull from — there's nothing to update "
-                "against here.\n\n"
-                "Switch to your release branch and pull:\n"
-                "    git checkout master && git pull\n\n"
-                "Or install the released build instead:\n"
-                f"    pip install -U git+https://github.com/{repo}.git")
+        return _run_git_update(_package_git_root() or ".", repo=repo)
     cmd = update_command(kind=kind, repo=repo)
     try:
         out = subprocess.run(cmd, capture_output=True, text=True,

@@ -144,6 +144,8 @@ def apply_sleek(style, mode, pal, font, bold):
     install_flat_indicators(style, mode, pal)
     style.configure('TMenubutton', padding=(10, 6),
                     background=PANEL, foreground=FG)
+    # The tray's Add / Remove dropdowns match its Side.TButton buttons.
+    style.configure('Side.TMenubutton', padding=(8, 5))
     style.configure('TEntry', padding=5, fieldbackground=PANEL,
                     foreground=FG, insertcolor=FG, bordercolor=BORDER)
     style.configure('TCombobox', padding=5, fieldbackground=PANEL,

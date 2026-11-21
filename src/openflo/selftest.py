@@ -72,8 +72,10 @@ def _cluster_metric():
         fluor_channels=['FL6-A', 'FL4-A', 'FL2-A', 'FL5-A', 'FL7-A',
                         'FL8-A'])
     # run_leiden only touches .data + .fluor_channels; a duck-typed stub keeps
-    # the cluster channels fixed (so the golden count is reproducible).
-    FlowSample.run_leiden(cast(FlowSample, s), resolution=0.5)
+    # the cluster channels fixed (so the golden count is reproducible). The
+    # golden count was set on the full (non-fast) graph, so it is pinned here.
+    FlowSample.run_leiden(cast(FlowSample, s), resolution=0.5,
+                          fast_graph=False)
     return {'cluster.leiden_n': int(s.data['leiden'].nunique())}
 
 

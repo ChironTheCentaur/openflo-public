@@ -241,7 +241,8 @@ def test_dialog_passes_its_cap_to_flowsom_and_names_the_real_caps():
         ed._run_clustering(method='leiden', **kw)
         assert '200,000' in busy[-1] and 'full data' not in busy[-1]
         ed._run_clustering(method='phenograph', **kw)
-        assert 'full data' in busy[-1]           # PhenoGraph has no cap
+        # PhenoGraph caps at 200,000 too, like Leiden.
+        assert '200,000' in busy[-1] and 'full data' not in busy[-1]
     finally:
         root.destroy()
 

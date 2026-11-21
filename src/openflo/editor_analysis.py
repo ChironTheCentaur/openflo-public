@@ -8,6 +8,7 @@ import tkinter as tk
 from tkinter import ttk
 
 from . import ui_errors
+from .cluster_caps import LEIDEN_FAST_GRAPH_DEFAULT
 from .dialog_inputs import number_or, read_int, read_number
 from .editor_base import EditorMixin
 from .som_kernel import FLOWSOM_DEFAULT_METACLUSTERS
@@ -32,6 +33,58 @@ FLOWSOM_METACLUSTER_TIP = (
     "boolean gate…). 20 is a good start for most panels; raise it for large "
     "panels or very rare populations.")
 
+
+
+# The Cluster dialog's Events / sample choices. Default clusters at most the
+# method's own cap (cluster_caps); All events clusters every event, after a
+# warning with the memory it needs for a graph method.
+DEFAULT_EVENTS = 'Default'
+ALL_EVENTS = 'All events'
+EVENTS_CHOICES = (DEFAULT_EVENTS, ALL_EVENTS, 'Smallest in group', 'Custom…')
+
+
+class ClusteringCanceled(Exception):
+    """Raised inside a clustering run once its Cancel was pressed."""
+
+
+def method_max_events(method, cap, uncapped, n_rows):
+    """The ``max_events`` a Cluster dialog run passes `method` for a
+    sample of `n_rows` rows: the user's cap, else every event (All
+    events), else the method's default cap."""
+    from .cluster_caps import default_cap
+    if cap:
+        return cap
+    if uncapped:
+        # FlowSOM's trainer takes a number (no None): the sample's size.
+        return max(int(n_rows), 1) if method == 'flowsom' else None
+    return default_cap(method)
+
+
+def _cap_note(method, cap, uncapped):
+    """The busy message's events part for a run."""
+    from .cluster_caps import default_cap
+    if cap:
+        return f" · {cap:,} ev/sample"
+    if uncapped:
+        return " · all events"
+    own = default_cap(method)
+    return f" · up to {own:,} ev/sample" if own else ""
+
+
+def _clustering_settings(method, k, grid, n_meta, resolution, reproducible,
+                         fast_graph, emb_kw):
+    """The settings a run used, for the audit trail (and so the Methods
+    paragraph and a reopened session can say how populations were made)."""
+    settings: dict = (
+        {'grid': grid, 'n_metaclusters': n_meta} if method == 'flowsom'
+        else {'k': k, 'resolution': float(resolution)})
+    if method == 'phenograph':
+        settings['reproducible'] = bool(reproducible)
+    if method == 'leiden':
+        settings['fast_graph'] = bool(fast_graph)
+    if emb_kw:
+        settings['embedding_components'] = emb_kw['n_components']
+    return settings
 
 class AnalysisMixin(EditorMixin):
     """Statistics / frequency / expression / QC / cluster / DR / trajectory / annotation launchers and apply."""
@@ -312,7 +365,7 @@ class AnalysisMixin(EditorMixin):
         method_var = self._cluster_method_picker(dlg)
         (k_var, res_var, grid_var, meta_var, fast_var, rows, res_note,
          method_settings) = self._cluster_setting_rows(dlg)
-        embed_var = self._cluster_embedding_row(dlg)
+        embed_var, dims_var = self._cluster_embedding_row(dlg)
         ds_var, ds_n_var = self._cluster_events_row(dlg)
         mk_list, _fluor, _default = self._cluster_markers_box(dlg)
         all_var, repro_var, repro_cb = self._cluster_run_options(dlg)
@@ -389,6 +442,8 @@ class AnalysisMixin(EditorMixin):
                 'method': method_var.get(), 'all_samples': all_var.get(),
                 'k': values['k'], 'grid': values['grid'],
                 'n_meta': values['meta'], 'embedding': embed_var.get(),
+                'embed_dims': (int(dims_var.get())
+                               if embed_var.get() == 'UMAP' else 2),
                 # Unused (greyed out) it is not sent: 1.0 changes nothing.
                 'resolution': (values['resolution'] if _resolution_applies()
                                else 1.0),
@@ -480,10 +535,10 @@ class AnalysisMixin(EditorMixin):
         res_note.grid(row=2, column=2, columnspan=2, sticky='w', padx=(0, 10))
         self._tip(res_note, "PhenoGraph's non-reproducible Louvain has no "
                   "resolution setting. Tick Reproducible to use one.")
-        # Leiden's opt-in pruned graph (FlowSample.run_leiden fast_graph),
-        # as in the workspace and openflo-run --fast-graph. Off by default:
-        # it changes the clusters.
-        fast_var = tk.BooleanVar(value=False)
+        # Leiden's pruned graph (FlowSample.run_leiden fast_graph), as in
+        # the workspace and openflo-run --fast-graph. On by default: the
+        # dense graph needed about 21 GB at 200,000 events (cluster_caps).
+        fast_var = tk.BooleanVar(value=LEIDEN_FAST_GRAPH_DEFAULT)
         fast_cb = ttk.Checkbutton(dlg, text="Fast graph", variable=fast_var)
         fast_cb.grid(row=1, column=2, columnspan=2, sticky='w', padx=(0, 10))
         self._tip(fast_cb, FAST_GRAPH_TIP)
@@ -509,7 +564,8 @@ class AnalysisMixin(EditorMixin):
 
     def _cluster_embedding_row(self, dlg):
         """The Cluster dialog's Embedding row, offering only the
-        installed embeddings; returns its variable for the caller."""
+        installed embeddings, and its Components box (2 or 3, UMAP only);
+        returns both variables for the caller."""
         ttk.Label(dlg, text="Embedding (for visualization):").grid(
             row=5, column=0, sticky='w', padx=10, pady=4)
         # Only offer embeddings whose backend is actually installed — picking a
@@ -519,41 +575,63 @@ class AnalysisMixin(EditorMixin):
         embed_var = tk.StringVar(
             value='UMAP' if 'UMAP' in avail_emb
             else (avail_emb[0] if avail_emb else 'none'))
-        embed_cb = ttk.Combobox(dlg, textvariable=embed_var, width=10,
+        embrow = ttk.Frame(dlg)
+        embrow.grid(row=5, column=1, sticky='w', padx=10, pady=4)
+        embed_cb = ttk.Combobox(embrow, textvariable=embed_var, width=10,
                                 state='readonly', values=avail_emb + ['none'])
-        embed_cb.grid(row=5, column=1, sticky='w', padx=10, pady=4)
+        embed_cb.pack(side='left')
         self._tip(embed_cb, "Also make a 2-D map of the cells to look at the "
                   "clusters (UMAP is the usual choice). It is for viewing "
                   "only and does not change the clusters; none skips it "
                   "and saves time.")
+        ttk.Label(embrow, text="Components:").pack(side='left', padx=(8, 2))
+        dims_var = tk.StringVar(value='2')
+        dims_cb = ttk.Combobox(embrow, textvariable=dims_var, width=3,
+                               state='readonly', values=['2', '3'])
+        dims_cb.pack(side='left')
+        self._tip(dims_cb, "UMAP only. 2 (default) makes UMAP1 and UMAP2. "
+                  "3 also makes UMAP3 and opens Analyze > 3D plot on the "
+                  "three; the first two are then a different map from a "
+                  "2-component run, so compare runs with the same number.")
+
+        def _dims_state(*_a):
+            on = embed_var.get() == 'UMAP'
+            dims_cb.state(['!disabled', 'readonly'] if on else ['disabled'])
+        embed_var.trace_add('write', _dims_state)
+        _dims_state()
+        self._cluster_dims_combo = dims_cb      # for tests
         if missing_emb:
             ttk.Label(dlg, style='Muted.TLabel', font='OpenFloSmall',
                       text=f"({', '.join(missing_emb)} need "
                            "pip install openflo[embed])").grid(
                 row=5, column=2, columnspan=2, sticky='w', padx=(0, 10))
-        return embed_var
+        return embed_var, dims_var
 
     def _cluster_events_row(self, dlg):
-        """The Cluster dialog's Events / sample row (Full, Smallest in
-        group or a custom number); returns its two variables."""
-        # Downsampling — clustering runs on FULL data by default; optionally
-        # cap to the smallest sample in the group (so groups compare at equal N)
-        # or to a custom number. Embeddings use the same cap when set.
+        """The Cluster dialog's Events / sample row (Default, All events,
+        Smallest in group or a custom number); returns its two variables."""
+        # Default clusters at most each method's own cap (cluster_caps);
+        # optionally every event, the smallest sample's size in the group (so
+        # groups compare at equal N) or a custom number. Embeddings use the
+        # same cap when one of the user's own is set.
         ttk.Label(dlg, text="Events / sample:").grid(
             row=6, column=0, sticky='w', padx=10, pady=4)
         dsrow = ttk.Frame(dlg)
         dsrow.grid(row=6, column=1, columnspan=3, sticky='w', padx=10, pady=4)
-        ds_var = tk.StringVar(value='Full')
+        ds_var = tk.StringVar(value=DEFAULT_EVENTS)
         ds_n_var = tk.StringVar(value='')
         ds_combo = ttk.Combobox(dsrow, textvariable=ds_var, width=18,
-                                state='readonly',
-                                values=['Full', 'Smallest in group', 'Custom…'])
+                                state='readonly', values=list(EVENTS_CHOICES))
         ds_combo.pack(side='left')
-        self._tip(ds_combo, "How many events of each sample to cluster. Full "
-                  "(default) sets no limit of your own. Smallest in group takes the "
-                  "same number from each sample, so groups compare fairly. "
-                  "Custom uses the number typed to the right. Fewer events "
-                  "run faster.")
+        self._tip(ds_combo, "How many events of each sample to cluster. "
+                  "Default: at most 200,000 for PhenoGraph and Leiden and "
+                  "50,000 for FlowSOM; every other event gets the cluster "
+                  "of its nearest clustered event. All events clusters "
+                  "every event, which can need several GB of memory on a "
+                  "big sample (you are warned first). Smallest in group "
+                  "takes the same number from each sample, so groups "
+                  "compare fairly. Custom uses the number typed to the "
+                  "right. Fewer events run faster.")
         ds_entry = ttk.Entry(dsrow, textvariable=ds_n_var, width=9)
         ds_entry.pack(side='left', padx=(6, 0))
         self._tip(ds_entry, "The number of events to take from each sample "
@@ -649,21 +727,64 @@ class AnalysisMixin(EditorMixin):
 
     def _run_clustering(self, method, all_samples, k, grid, n_meta,
                         embedding='UMAP', resolution=1.0, channels=None,
-                        reproducible=True, downsample='Full', custom_n=None,
-                        fast_graph=False):
+                        reproducible=True, downsample='Default', custom_n=None,
+                        fast_graph=LEIDEN_FAST_GRAPH_DEFAULT, embed_dims=2):
         targets = [n for n in (self._sample_order if all_samples
                                else [self._active_sample])
                    if n in self._samples]
         if not targets:
             self.status_var.set("No sample selected.")
             return
-        # Resolve the per-sample event cap (None = full data).
-        cap = None
+        # The per-sample event cap of the user's own (None: the method's
+        # default cap, or every event with All events).
+        ok, cap = self._clustering_cap(downsample, custom_n, targets)
+        if not ok:
+            return
+        uncapped = downsample == ALL_EVENTS and not cap
+        if not self._confirm_large_clustering(method, targets, cap, uncapped,
+                                              bool(fast_graph), k):
+            return
+        self._clustering_busy = True
+        n = len(targets)
+        cap_note = _cap_note(method, cap, uncapped)
+        emb_method, emb_prefix = self._EMBEDDINGS.get(embedding, (None, None))
+        from .channel_roles import check_embed_components
+        # Only UMAP takes a component count; the others stay 2-D.
+        emb_kw = ({'n_components': check_embed_components(embed_dims)}
+                  if emb_prefix == 'UMAP' else {})
+        settings = _clustering_settings(method, k, grid, n_meta, resolution,
+                                        reproducible, fast_graph, emb_kw)
+        run = {'method': method, 'k': k, 'grid': grid, 'n_meta': n_meta,
+               'resolution': resolution, 'channels': channels,
+               'reproducible': reproducible, 'fast_graph': fast_graph,
+               'cap': cap, 'uncapped': uncapped, 'embedding': embedding,
+               'emb_method': emb_method, 'emb_prefix': emb_prefix,
+               'emb_kw': emb_kw, 'settings': settings}
+        # The samples the run reached, for a run that fails part way: only
+        # these may have had columns written (_clustering_error).
+        started: list = []
+        cancel = self._show_clustering_cancel()
+
+        def work():
+            return self._clustering_work(run, targets, started, cancel)
+
+        self.run_async(
+            work,
+            on_done=lambda res: self._clustering_done(
+                run, targets, *res),
+            on_error=lambda exc: self._clustering_error(exc, started),
+            busy_msg=f"{method} on {n} sample(s){cap_note}…")
+
+    def _clustering_cap(self, downsample, custom_n, targets):
+        """``(ok, cap)`` for the Events / sample choice: the per-sample
+        cap of the user's own, None for Default and All events. ``ok`` is
+        False (with the reason in the status bar) for a refused Custom
+        number."""
         if downsample == 'Smallest in group':
             szs = [len(self._samples[t].data) for t in targets
                    if getattr(self._samples[t], 'data', None) is not None]
-            cap = min(szs) if szs else None
-        elif downsample == 'Custom…':
+            return True, (min(szs) if szs else None)
+        if downsample == 'Custom…':
             # The dialog passes the whole number it checked (read_int, at
             # least MIN_CUSTOM_EVENTS); anything else is refused here, by
             # the same floor, rather than read as "no cap".
@@ -673,90 +794,161 @@ class AnalysisMixin(EditorMixin):
                     f"Events / sample (Custom…) must be a whole number of at "
                     f"least {MIN_CUSTOM_EVENTS} (got '{custom_n}'): "
                     "clustering not started.")
-                return
-            cap = custom_n
-        self._clustering_busy = True
-        n = len(targets)
-        # Without a cap PhenoGraph clusters every event, but Leiden
-        # partitions at most 200,000 and FlowSOM trains on at most 50,000
-        # (the rest are assigned): say so rather than "full data".
-        _own_cap = {'leiden': 200_000, 'flowsom': 50_000}.get(method)
-        cap_note = (f" · {cap:,} ev/sample" if cap
-                    else f" · up to {_own_cap:,} ev/sample" if _own_cap
-                    else " · full data")
-        emb_method, emb_prefix = self._EMBEDDINGS.get(embedding, (None, None))
+                return False, None
+            return True, custom_n
+        return True, None
+
+    def _confirm_large_clustering(self, method, targets, cap, uncapped,
+                                  fast_graph=LEIDEN_FAST_GRAPH_DEFAULT, k=30):
+        """Ask before a graph clustering of more events in one sample than
+        the method's default cap (All events, or a Custom or Smallest in
+        group number above it), or of more than free memory holds, with
+        the memory it needs. True to go on."""
+        from .cluster_caps import (
+            available_memory_gb,
+            default_cap,
+            large_run_warning,
+        )
+        sizes = [len(self._samples[t].data) for t in targets
+                 if getattr(self._samples[t], 'data', None) is not None]
+        biggest = max(sizes, default=0)
+        limit = None if uncapped else (cap or default_cap(method))
+        n_events = biggest if limit is None else min(biggest, limit)
+        text = large_run_warning(method, n_events, available_memory_gb(),
+                                 fast_graph, k)
+        if text is None:
+            return True
+        from tkinter import messagebox
+        if messagebox.askyesno("Large clustering run", text, icon='warning',
+                               default='no', parent=self):
+            return True
+        self.status_var.set("Clustering not started. Fewer events per "
+                            "sample need less memory.")
+        return False
+
+    def _show_clustering_cancel(self):
+        """A new cancel flag for a clustering run, and the status bar's
+        Cancel button shown for it (when the window has one)."""
+        import threading
+        cancel = self._clustering_cancel = threading.Event()
+        btn = self.__dict__.get('_cluster_cancel_btn')
+        if btn is not None:
+            try:
+                btn.configure(state='normal')
+                btn.grid()
+            except tk.TclError:
+                pass
+        return cancel
+
+    def _cancel_clustering(self):
+        """The status bar's Cancel: stop the running clustering at its
+        next step (Tk callback)."""
+        cancel = self.__dict__.get('_clustering_cancel')
+        if cancel is None or not getattr(self, '_clustering_busy', False):
+            return
+        cancel.set()
+        btn = self.__dict__.get('_cluster_cancel_btn')
+        if btn is not None:
+            try:
+                btn.configure(state='disabled')
+            except tk.TclError:
+                pass
+        self.status_var.set("Canceling clustering: it stops after the "
+                            "step now running…")
+
+    def _clustering_work(self, run, targets, started, cancel):
+        """The clustering run itself, off the Tk thread: ``(outcome,
+        embedded, canceled)``. Cancel is checked before each sample,
+        inside PhenoGraph (before its clustering and before it writes)
+        and before each embedding; a sample whose labels were written
+        before Cancel keeps them."""
         from .editor_compute import label_run_outcome
+        method, emb_prefix = run['method'], run['emb_prefix']
         col = self._cluster_label_column(method)
-
         emb_col = f'{emb_prefix}1' if emb_prefix else None
-        # The settings the run used, for the audit trail (and so the Methods
-        # paragraph and a reopened session can say how populations were made).
-        settings: dict = (
-            {'grid': grid, 'n_metaclusters': n_meta} if method == 'flowsom'
-            else {'k': k, 'resolution': float(resolution)})
+        outcome, embedded, n = {}, [], len(targets)
+        for i, name in enumerate(targets, 1):
+            s = self._samples.get(name)
+            if s is None:
+                continue
+            if cancel.is_set():
+                return outcome, embedded, True
+            started.append(name)
+            self._busy(f"{method}: clustering {name} ({i}/{n})…")
+            before = (s.data[col].to_numpy() if col in s.data.columns
+                      else None)
+            try:
+                self._cluster_one(s, run, cancel)
+            except ClusteringCanceled:
+                return outcome, embedded, True
+            outcome[name] = label_run_outcome(before, s.data, col)
+            # A skipped sample is reported as 'no labels' and is neither
+            # imported nor audited, so it gets no embedding either.
+            if not run['emb_method'] or outcome[name] == 'skipped':
+                continue
+            if cancel.is_set():
+                return outcome, embedded, True
+            self._busy(
+                f"{run['embedding']} embedding on {name} ({i}/{n})… "
+                "first run compiles, ~30-50s — still working")
+            emb_before = (s.data[emb_col].to_numpy()
+                          if emb_col in s.data.columns else None)
+            # On the channels just clustered, not every fluor channel
+            # (None: the same default both use).
+            getattr(s, run['emb_method'])(
+                channels=run['channels'],
+                **({'sample_n': run['cap']} if run['cap'] else {}),
+                **run['emb_kw'])
+            # As for the labels: a column this call did not write is an
+            # earlier run's (an uninstalled backend writes nothing).
+            if label_run_outcome(emb_before, s.data, emb_col) != 'skipped':
+                embedded.append(name)
+        return outcome, embedded, False
+
+    def _cluster_one(self, s, run, cancel):
+        """Cluster sample ``s`` with the run's method and settings."""
+        method, channels = run['method'], run['channels']
+        max_events = method_max_events(method, run['cap'], run['uncapped'],
+                                       len(s.data))
         if method == 'phenograph':
-            settings['reproducible'] = bool(reproducible)
-        if method == 'leiden' and fast_graph:
-            settings['fast_graph'] = True
+            def checkpoint():
+                if cancel.is_set():
+                    raise ClusteringCanceled()
+            s.cluster(channels=channels, k=run['k'], max_events=max_events,
+                      reproducible=run['reproducible'],
+                      resolution=run['resolution'], checkpoint=checkpoint)
+            # None when PhenoGraph's Louvain ran (no resolution).
+            run['settings']['resolution'] = (
+                getattr(s, 'cluster_settings', None) or {}).get('resolution')
+        elif method == 'leiden':
+            s.run_leiden(channels=channels, n_neighbors=run['k'],
+                         resolution=run['resolution'], max_events=max_events,
+                         fast_graph=bool(run['fast_graph']))
+        else:
+            s.run_flowsom(channels=channels, grid=(run['grid'], run['grid']),
+                          n_metaclusters=run['n_meta'],
+                          max_events=max_events)
 
-        # The samples the run reached, for a run that fails part way: only
-        # these may have had columns written (_clustering_error).
-        started: list = []
-
-        def work():
-            outcome, embedded = {}, []
-            for i, name in enumerate(targets, 1):
-                s = self._samples.get(name)
-                if s is None:
-                    continue
-                started.append(name)
-                self._busy(f"{method}: clustering {name} ({i}/{n})…")
-                before = (s.data[col].to_numpy() if col in s.data.columns
-                          else None)
-                if method == 'phenograph':
-                    s.cluster(channels=channels, k=k, max_events=cap,
-                              reproducible=reproducible,
-                              resolution=resolution)
-                    # None when PhenoGraph's Louvain ran (no resolution).
-                    settings['resolution'] = (
-                        getattr(s, 'cluster_settings', None) or {}).get(
-                            'resolution')
-                elif method == 'leiden':
-                    s.run_leiden(channels=channels, n_neighbors=k,
-                                 resolution=resolution, max_events=(cap or 200_000),
-                                 fast_graph=bool(fast_graph))
-                else:
-                    s.run_flowsom(channels=channels, grid=(grid, grid),
-                                  n_metaclusters=n_meta,
-                                  max_events=(cap or 50_000))
-                outcome[name] = label_run_outcome(before, s.data, col)
-                # A skipped sample is reported as 'no labels' and is neither
-                # imported nor audited, so it gets no embedding either.
-                if emb_method and outcome[name] != 'skipped':
-                    self._busy(
-                        f"{embedding} embedding on {name} ({i}/{n})… "
-                        "first run compiles, ~30-50s — still working")
-                    emb_before = (s.data[emb_col].to_numpy()
-                                  if emb_col in s.data.columns else None)
-                    # On the channels just clustered, not every fluor
-                    # channel (None: the same default both use).
-                    getattr(s, emb_method)(
-                        channels=channels,
-                        **({'sample_n': cap} if cap else {}))
-                    # As for the labels: a column this call did not write is
-                    # an earlier run's (an uninstalled backend writes nothing).
-                    if label_run_outcome(emb_before, s.data,
-                                         emb_col) != 'skipped':
-                        embedded.append(name)
-            return outcome, embedded
-
-        self.run_async(
-            work,
-            on_done=lambda res: self._finish_clustering(
-                method, emb_prefix, targets, *res, channels=channels,
-                settings=settings),
-            on_error=lambda exc: self._clustering_error(exc, started),
-            busy_msg=f"{method} on {n} sample(s){cap_note}…")
+    def _clustering_done(self, run, targets, outcome, embedded, canceled):
+        """A run finished, or stopped at Cancel: import what it wrote."""
+        if not canceled:
+            self._finish_clustering(
+                run['method'], run['emb_prefix'], targets, outcome, embedded,
+                channels=run['channels'], settings=run['settings'])
+            return
+        done = [t for t in targets if t in outcome]
+        if not done:
+            self._end_clustering_busy()
+            self.status_var.set("Clustering canceled. No sample was "
+                                "changed.")
+            return
+        self._finish_clustering(
+            run['method'], run['emb_prefix'], done, outcome, embedded,
+            channels=run['channels'], settings=run['settings'])
+        self.status_var.set(
+            f"Clustering canceled after {len(done)} of {len(targets)} "
+            f"sample(s); those keep their clusters. "
+            f"{self.status_var.get()}")
 
     def _open_dr_compare(self):
         """Open the embedding-comparison setup dialog (pick methods + cell
@@ -796,6 +988,19 @@ class AnalysisMixin(EditorMixin):
         # later, in the background worker.
         from .ui_embedding import EmbeddingDialog
         EmbeddingDialog(self, name, len(df), have, df, chans)
+
+    def _open_view3d(self):
+        """Analyze > 3D plot…: three channels or a 3D embedding, turnable."""
+        from .ui_view3d import open_view3d
+        return open_view3d(self)
+
+    def _open_view3d_on(self, name, axes, color_column=None):
+        """The 3D plot showing sample ``name`` on ``axes`` (three columns),
+        colored by the label column ``color_column`` when given."""
+        win = self._open_view3d()
+        if win is not None:
+            win.show(name, axes, color_column=color_column)
+        return win
 
     def _open_group_stats(self):
         """Compare a channel's per-sample median across trial groups."""

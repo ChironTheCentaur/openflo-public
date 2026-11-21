@@ -373,16 +373,17 @@ def samples_to_compare(groups, results, reused, tasks=(), failures=None):
 
 
 def group_plots_job(samples, label, pair_label, out, random_state, pairs,
-                     dpi=DEFAULT_DPI, keep_open=None):
+                     dpi=DEFAULT_DPI, keep_open=None, umap_components=2):
     """One group's UMAP and marker-pair scatters (picklable: runs in a
     worker process when groups are drawn in parallel)."""
     run_group_umap(samples, label, out, random_state=random_state, dpi=dpi,
-                   keep_open=keep_open)
+                   keep_open=keep_open, n_components=umap_components)
     save_group_pair_scatters(samples, pair_label, out, pairs=pairs, dpi=dpi)
 
 
 def draw_group_plots(jobs, out, random_state, pairs, workers, report,
-                      prefix='', dpi=DEFAULT_DPI, keep_open=None):
+                      prefix='', dpi=DEFAULT_DPI, keep_open=None,
+                      umap_components=2):
     """Each group's UMAP and pair scatters. ``jobs`` holds ``(name,
     samples, label, pair_label)`` per group. With ``workers`` > 1 and more
     than one group the groups run in a process pool (each is independent and
@@ -401,7 +402,8 @@ def draw_group_plots(jobs, out, random_state, pairs, workers, report,
                 initializer=start_worker,
                 initargs=(worker_settings(),)) as ex:
             futs = [ex.submit(group_plots_job, samples, label, pair_label,
-                              out, random_state, pairs, dpi)
+                              out, random_state, pairs, dpi, None,
+                              umap_components)
                     for _name, samples, label, pair_label in jobs]
             for (name, samples, _l, _p), fut in zip(jobs, futs, strict=True):
                 report(f'{prefix}Running UMAP ({name}, {len(samples)} '
@@ -412,7 +414,7 @@ def draw_group_plots(jobs, out, random_state, pairs, workers, report,
         report(f'{prefix}Running UMAP ({name}, {len(samples)} '
                'sample(s)) …')
         group_plots_job(samples, label, pair_label, out, random_state, pairs,
-                         dpi, keep_open)
+                         dpi, keep_open, umap_components)
 
 
 def too_few_to_draw(name, samples, prefix=''):
@@ -485,7 +487,8 @@ def write_group_outputs(groups, results, reused, out, report, cluster_task,
                      f'{g["name"]}{suffix}'))
     dpi = cluster_task.get('dpi', DEFAULT_DPI)
     draw_group_plots(jobs, out, random_state, pairs, workers, report,
-                      prefix, dpi=dpi, keep_open=keep_open)
+                      prefix, dpi=dpi, keep_open=keep_open,
+                      umap_components=cluster_task.get('umap_components', 2))
 
     group_pairs = list(combinations(groups, 2))
     if not group_pairs:

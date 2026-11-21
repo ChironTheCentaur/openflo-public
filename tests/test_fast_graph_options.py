@@ -57,33 +57,35 @@ def _direct(df, fast):
 
 def test_fast_graph_tip_explains_the_tradeoff():
     from openflo.tool_window import FAST_GRAPH_TIP
-    for words in ('Leiden only', 'Off (default)', 'faster',
-                  'not comparable', 'differ'):
+    for words in ('Leiden only', 'On (default)', 'slower', 'memory',
+                  '21 GB', 'differ'):
         assert words in FAST_GRAPH_TIP, words
 
 
 # ── openflo-run ─────────────────────────────────────────────────────────────
 
-def test_cli_flag_is_off_by_default_and_explained():
+def test_cli_flag_is_on_by_default_and_explained():
     from openflo.cli_args import build_parser
     ap = build_parser()
-    assert ap.parse_args([]).fast_graph is False
+    # None = not given: cli_main turns it into LEIDEN_FAST_GRAPH_DEFAULT.
+    assert ap.parse_args([]).fast_graph is None
     assert ap.parse_args(['--fast-graph']).fast_graph is True
+    assert ap.parse_args(['--no-fast-graph']).fast_graph is False
     help_text = ' '.join(ap.format_help().split())
-    assert '--fast-graph' in help_text
-    for words in ('Leiden only', 'not comparable', 'Off by default'):
+    assert '--fast-graph' in help_text and '--no-fast-graph' in help_text
+    for words in ('Leiden only', 'On by default', '21 GB', 'compare'):
         assert words in help_text, words
 
 
-def test_cluster_settings_carry_the_flag_and_default_off():
+def test_cluster_settings_carry_the_flag_and_default_on():
     from openflo.shared_clustering import cluster_settings
     base = cluster_settings(30, 1, None, 1.0, 42)
-    assert base['fast_graph'] is False
+    assert base['fast_graph'] is True
     assert cluster_settings(30, 1, None, 1.0, 42,
-                            {'method': 'leiden'})['fast_graph'] is False
+                            {'method': 'leiden'})['fast_graph'] is True
     assert cluster_settings(30, 1, None, 1.0, 42,
                             {'method': 'leiden',
-                             'fast_graph': True})['fast_graph'] is True
+                             'fast_graph': False})['fast_graph'] is False
 
 
 def test_cli_worker_leiden_labels_match_a_direct_run_with_the_same_graph():
@@ -99,7 +101,7 @@ def test_cli_worker_leiden_labels_match_a_direct_run_with_the_same_graph():
         got[fast] = s.data['cluster'].to_numpy()
     plain = _sample(df)
     cluster_by_method(plain, task)            # no key at all: the default
-    assert np.array_equal(plain.data['cluster'].to_numpy(), got[False])
+    assert np.array_equal(plain.data['cluster'].to_numpy(), got[True])
     assert np.array_equal(got[False], _direct(df, False))
     assert np.array_equal(got[True], _direct(df, True))
     assert not np.array_equal(got[False], got[True])
@@ -125,7 +127,7 @@ def _leiden_spy(monkeypatch):
     orig = FlowSample.run_leiden
 
     def spy(self, *a, **kw):
-        seen.append(kw.get('fast_graph', False))
+        seen.append(kw.get('fast_graph', 'not passed'))
         return orig(self, *a, **kw)
     monkeypatch.setattr(FlowSample, 'run_leiden', spy)
     return seen
@@ -134,19 +136,22 @@ def _leiden_spy(monkeypatch):
 def test_openflo_run_fast_graph_reaches_every_leiden_call(
         two_groups, tmp_path, stubbed, monkeypatch):
     """--fast-graph reaches each sample's clustering and the shared one, and
-    the run manifest records it; without it every call is the default."""
+    the run manifest records it; without it every call is the default
+    (on), and --no-fast-graph turns it off everywhere."""
     pytest.importorskip('leidenalg')
     from tests.test_cli_run import _main
     trial, groups, _ = two_groups
-    for flag, out in ((['--fast-graph'], 'fast'), ([], 'dense')):
+    for flag, out, want in ((['--fast-graph'], 'fast', True),
+                            ([], 'default', True),
+                            (['--no-fast-graph'], 'dense', False)):
         seen = _leiden_spy(monkeypatch)
         _main(monkeypatch, '--trials', trial, '--groups', json.dumps(groups),
               '--fmo-sets', '{}', '-q', '--cluster-method', 'leiden',
               *flag, '--out', str(tmp_path / out))
         assert len(seen) == 5                # 4 samples + 1 shared
-        assert seen == [bool(flag)] * 5
+        assert seen == [want] * 5
         with open(tmp_path / out / 'run_manifest.json', encoding='utf-8') as f:
-            assert json.load(f)['settings']['fast_graph'] is bool(flag)
+            assert json.load(f)['settings']['fast_graph'] is want
 
 
 def test_openflo_run_says_the_flag_is_leiden_only(
@@ -161,6 +166,11 @@ def test_openflo_run_says_the_flag_is_leiden_only(
     _main(monkeypatch, '--trials', trial, '--groups', json.dumps(groups),
           '--fmo-sets', '{}', '-q', '--out', str(tmp_path / 'pg2'))
     assert '--fast-graph applies only' not in capsys.readouterr().out
+    _main(monkeypatch, '--trials', trial, '--groups', json.dumps(groups),
+          '--fmo-sets', '{}', '-q', '--no-fast-graph',
+          '--out', str(tmp_path / 'pg3'))
+    assert ('--fast-graph applies only to --cluster-method leiden'
+            in capsys.readouterr().out)
     # Leiden with the flag is the case it is for: no note.
     pytest.importorskip('leidenalg')
     _main(monkeypatch, '--trials', trial, '--groups', json.dumps(groups),
@@ -169,15 +179,16 @@ def test_openflo_run_says_the_flag_is_leiden_only(
     assert '--fast-graph applies only' not in capsys.readouterr().out
 
 
-def test_python_entry_points_default_to_the_dense_graph():
-    """Code that calls run() or the dialog's run directly, without the
-    argument, gets the default graph."""
+def test_python_entry_points_default_to_the_fast_graph():
+    """Code that calls run(), the dialog's run or the sample methods
+    directly, without the argument, gets the default (fast) graph."""
     import inspect
 
     from openflo.cli_run import run
     from openflo.editor_analysis import AnalysisMixin
-    for fn in (run, AnalysisMixin._run_clustering):
-        assert inspect.signature(fn).parameters['fast_graph'].default is False
+    for fn in (run, AnalysisMixin._run_clustering, FlowSample.run_leiden,
+               FlowSample.run_louvain):
+        assert inspect.signature(fn).parameters['fast_graph'].default is True
 
 
 # ── the Cluster dialog ─────────────────────────────────────────────────────
@@ -212,7 +223,7 @@ def _press(dlg, text):
          and w.cget('text') == text).invoke()
 
 
-def test_dialog_fast_graph_box_is_leiden_only_off_and_tipped():
+def test_dialog_fast_graph_box_is_leiden_only_on_and_tipped():
     from openflo.tool_window import FAST_GRAPH_TIP
     root, ed = _editor_or_skip()
     try:
@@ -229,20 +240,19 @@ def test_dialog_fast_graph_box_is_leiden_only_off_and_tipped():
         assert not box.grid_info()
         _press(dlg, 'Leiden')
         assert box.grid_info()
-        assert not box.instate(['selected'])             # off by default
-        _press(dlg, 'Run')
-        assert got[-1]['method'] == 'leiden'
-        assert got[-1]['fast_graph'] is False
-        dlg = _open(ed)
-        _press(dlg, 'Leiden')
-        _press(dlg, 'Fast graph')                        # tick
+        assert box.instate(['selected'])                 # on by default
         _press(dlg, 'Run')
         assert got[-1]['method'] == 'leiden'
         assert got[-1]['fast_graph'] is True
-        # Ticked, then another method picked: not sent to it.
         dlg = _open(ed)
         _press(dlg, 'Leiden')
-        _press(dlg, 'Fast graph')
+        _press(dlg, 'Fast graph')                        # untick
+        _press(dlg, 'Run')
+        assert got[-1]['method'] == 'leiden'
+        assert got[-1]['fast_graph'] is False
+        # Ticked (the default), then another method picked: not sent to it.
+        dlg = _open(ed)
+        _press(dlg, 'Leiden')
         _press(dlg, 'PhenoGraph')
         _press(dlg, 'Run')
         assert got[-1]['method'] == 'phenograph'
@@ -271,7 +281,8 @@ def test_dialog_run_uses_the_fast_graph_and_audits_it():
         assert not np.array_equal(got[False], got[True])
         entries = [d for a, d in ed._audited if a == 'cluster']
         assert len(entries) == 2
-        assert 'fast_graph' not in entries[0]            # default: unchanged
+        # Every Leiden run records which graph it used.
+        assert entries[0]['fast_graph'] is False
         assert entries[1]['fast_graph'] is True
     finally:
         root.destroy()
@@ -300,6 +311,6 @@ def test_workspace_fast_graph_box_uses_the_shared_tip():
         [box] = [w for w in _walk(v) if isinstance(w, ttk.Checkbutton)
                  and w.cget('text') == 'Fast graph']
         assert tips.get(str(box)) == FAST_GRAPH_TIP
-        assert v._sync_run_cfg()['fast_graph'] is False     # pre-filled off
+        assert v._sync_run_cfg()['fast_graph'] is True      # pre-filled on
     finally:
         root.destroy()

@@ -28,7 +28,8 @@ from .channel_names import TIME_PATTERN, is_time_channel
 EXCLUDE_CLUSTER  = ['Time', 'time',
                     'cluster', 'flowsom', 'flowsom_meta', 'cell_cycle',
                     'debarcode', 'leiden', 'pseudotime',
-                    'UMAP1', 'UMAP2', 'TSNE1', 'TSNE2', 'TRIMAP1', 'TRIMAP2',
+                    'UMAP1', 'UMAP2', 'UMAP3', 'TSNE1', 'TSNE2', 'TRIMAP1',
+                    'TRIMAP2',
                     'PACMAP1', 'PACMAP2', 'PHATE1', 'PHATE2',
                     '__group__', '__sample__']
 
@@ -65,6 +66,30 @@ def is_scatter(name):
     u = str(name).upper()
     return (bool(_SCATTER_RE.search(u)) or is_time_channel(u) or 'WIDTH' in u
             or u in _INSTRUMENT_PARAMS)
+
+
+# Embeddings write <PREFIX>1, <PREFIX>2 and, for a 3-D UMAP, <PREFIX>3.
+EMBED_PREFIXES = ('UMAP', 'TSNE', 'TRIMAP', 'PACMAP', 'PHATE')
+MAX_EMBED_COMPONENTS = 3
+EMBED_COMPONENT_CHOICES = (2, 3)
+
+
+def check_embed_components(n):
+    """``n`` as an int when it is a supported number of embedding
+    components (2 or 3), else ValueError."""
+    if int(n) != n or int(n) not in EMBED_COMPONENT_CHOICES:
+        raise ValueError(f"an embedding has 2 or 3 components, not {n!r}")
+    return int(n)
+
+
+def embedding_prefix(name):
+    """The embedding a column is a component of ('UMAP' for 'UMAP3', any
+    case), or None for any other column."""
+    up = str(name).upper()
+    for p in EMBED_PREFIXES:
+        if up.startswith(p) and up[len(p):] in ('1', '2', '3'):
+            return p
+    return None
 
 
 def is_excluded(name):

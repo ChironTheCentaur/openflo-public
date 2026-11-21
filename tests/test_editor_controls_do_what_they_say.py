@@ -131,22 +131,48 @@ def test_max_points_refuses_bad_text_with_a_message_and_restores_the_box(
     assert ed._display_point_cap() == 20_000
 
 
-def test_max_points_applies_a_typed_value_on_focus_out(ed):
-    """MAIN-3: a value typed and left (click elsewhere) was shown but not
-    used until Enter. Leaving the box commits it."""
+def _menu_index(menu, label):
+    end = menu.index('end')
+    for i in range(0 if end is None else end + 1):
+        if menu.type(i) != 'separator' and menu.entrycget(i, 'label') == label:
+            return i
+    raise AssertionError(f'no entry {label!r}')
+
+
+def test_max_points_applies_a_typed_custom_value(ed, monkeypatch):
+    """MAIN-3: a typed cap is used as soon as it is entered. Events >
+    Custom… takes it; a bad one is refused and the cap in use is kept."""
+    from tkinter import simpledialog
     _load_blocks(ed, 1500)
     ed.ds_display_var.set(True)
-    ed.max_points_var.set('1.2k')
-    ed._mp_combo.event_generate('<FocusOut>')
+    answers = iter(['1.2k', 'banana', None])
+    monkeypatch.setattr(simpledialog, 'askstring',
+                        lambda *a, **k: next(answers))
+    custom = _menu_index(ed._events_menu, 'Custom…')
+    ed._events_menu.invoke(custom)
     ed.update()
     assert ed._mp_last_good == '1.2k'
     assert ed._sample_display_count('s2') == (1200, 1500)
-    # A bad value left behind is refused the same way as on Enter.
-    ed.max_points_var.set('banana')
-    ed._mp_combo.event_generate('<FocusOut>')
+    assert ed._events_mb.cget('text') == 'Events: Display · 1.2k'
+    ed._events_menu.invoke(custom)
     ed.update()
     assert ed.max_points_var.get() == '1.2k'
     assert 'it says “banana”' in ed.status_var.get()
+    # Cancel changes nothing and says nothing.
+    ed.status_var.set('before')
+    ed._events_menu.invoke(custom)
+    ed.update()
+    assert ed.max_points_var.get() == '1.2k'
+    assert ed.status_var.get() == 'before'
+
+
+def test_a_max_points_preset_applies_at_once(ed):
+    _load_blocks(ed, 1500)
+    ed.ds_display_var.set(True)
+    ed._events_menu.invoke(_menu_index(ed._events_menu, '20,000'))
+    ed.update()
+    assert ed._mp_last_good == '20000'
+    assert ed._events_mb.cget('text') == 'Events: Display · 20k'
 
 
 # ── Color is greyed out where it isn't used ───────────────────────────────
@@ -586,13 +612,13 @@ def test_cut_gate_status_and_help_say_it_is_removed_now(ed):
 # ── Remove with nothing selected ──────────────────────────────────────────
 
 def test_side_remove_with_nothing_selected_says_what_to_select(ed):
-    from tkinter import ttk
     _three(ed)
     ed.gate_tv.selection_set(())
     ed.status_var.set('old text')
-    (rm,) = [w for w in _walk(ed) if isinstance(w, ttk.Button)
-             and w.cget('text') == 'Remove']
-    rm.invoke()
+    rm = ed._remove_menu
+    assert rm.entrycget(ed.REMOVE_FROM_SESSION, 'label') == (
+        'Remove from session…')
+    rm.invoke(ed.REMOVE_FROM_SESSION)
     assert ed.status_var.get() == ("Select a sample or trial row to remove "
                                    "from the session.")
     assert set(ed._samples) == {'s1', 's2', 's3'}

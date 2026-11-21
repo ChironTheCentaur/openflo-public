@@ -19,6 +19,11 @@ so the Tk gate editor and a headless document open a session the same way:
   links are followed: a crafted session cannot make the sidecar reader
   open a file outside it (a raw FCS may be in a sibling folder, with a
   note in the log);
+* a raw FCS still not found is looked for in the project the session came
+  from, unpacked beside it (``project_copies.project_matches``), and taken
+  from there when it is verified to be the same recording: a session
+  copied next to its project opens with that project's samples, and never
+  with another day's file of the same name;
 * a sample whose file is not found is kept, with its gates, as an offline
   entry (``offline_entry``), so the next save writes it back unchanged.
 
@@ -35,7 +40,7 @@ from __future__ import annotations
 import logging
 import os
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 from . import result_stamp as _stamps
@@ -81,7 +86,9 @@ class PlannedSample:
     ``instrument_compensated``, ``set_number``); both are None for an
     entry not staged. ``fmo_of`` and ``color`` are its FMO-control channels
     and the overlay colour to give it (None: none saved, or the
-    placeholder)."""
+    placeholder). ``found_in`` is the unpacked project its raw file was
+    found in when it was not where the session saved it ('' otherwise;
+    ``plan_samples``)."""
 
     entry: _Entry
     name: str
@@ -94,6 +101,7 @@ class PlannedSample:
     prep: dict[str, Any] | None
     fmo_of: list[str] | None
     color: str | None
+    found_in: str = ''
 
     @property
     def load_path(self) -> str:
@@ -161,10 +169,48 @@ def plan_session(data: dict[str, Any], session_dir: str, *,
 
 def plan_samples(entries: Iterable[_Entry],
                  sample_gates: Mapping[Any, list[Gate]], session_dir: str,
-                 *, data_dir: str = '') -> list[PlannedSample]:
-    """``plan_sample`` for each of a session's sample `entries`, in order."""
-    return [plan_sample(e, sample_gates, session_dir, data_dir=data_dir)
+                 *, data_dir: str = '',
+                 find_projects: bool = True) -> list[PlannedSample]:
+    """``plan_sample`` for each of a session's sample `entries`, in order.
+
+    With `find_projects`, a sample whose raw file was not found is looked
+    for in the project it came from, unpacked beside the session
+    (``project_copies``: a project folder there, or a copy of a project
+    archive there). One found there AND verified to be the recording the
+    session had (``project_copies.project_matches``) is planned from that
+    file instead: its entry's ``path`` that file, its old ``rel_path``
+    dropped (the next save links it afresh) and ``found_in`` the project
+    folder, for the caller to say so. A match not verified (a file of the
+    same name, maybe another day's) is left missing, for the caller to
+    offer."""
+    plan = [plan_sample(e, sample_gates, session_dir, data_dir=data_dir)
             for e in entries]
+    lost = [p for p in plan if not p.raw_found and p.name]
+    if not (find_projects and lost and session_dir):
+        return plan
+    from .project_copies import (
+        project_folders,
+        project_matches,
+        verified_files,
+    )
+    found = verified_files(project_matches(
+        [p.entry for p in lost], project_folders(session_dir)))
+    if not found:
+        return plan
+    out = []
+    for p in plan:
+        m = found.get(p.name) if not p.raw_found else None
+        if m is None:
+            out.append(p)
+            continue
+        e = dict(p.entry, path=m.path)
+        e.pop('rel_path', None)
+        log.info("[session] %s: raw file found in project folder %s",
+                 p.name, m.folder)
+        out.append(replace(plan_sample(e, sample_gates, session_dir,
+                                       data_dir=data_dir),
+                           found_in=m.folder))
+    return out
 
 
 def plan_sample(entry: _Entry, sample_gates: Mapping[Any, list[Gate]],

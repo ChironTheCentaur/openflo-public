@@ -340,6 +340,7 @@ def test_every_option_reaches_the_runner(trials, tmp_path, rec, mode):
         'filter_debris_um', 'bead_um', 'doublet_tol', 'random_state', 'pairs',
         'qc', 'dpi', 'cluster_method', 'resolution', 'n_metaclusters',
         'reproducible')}
+    s['umap_components'] = 3      # checked at the start, so a real count
     fmo = {'x': {}}
     out = str(tmp_path / 'o')
     cli_run.run(trials, out, G2, fmo_sets=fmo, batch_mode=mode, workers=2,
@@ -362,7 +363,8 @@ def test_every_option_reaches_the_runner(trials, tmp_path, rec, mode):
                                  'resolution': s['resolution'],
                                  'n_metaclusters': s['n_metaclusters'],
                                  'reproducible': s['reproducible'],
-                                 'fast_graph': True},
+                                 'fast_graph': True,
+                                 'umap_components': s['umap_components']},
                  'qc': s['qc'], 'dpi': s['dpi'], 'keep_open': False}
     assert k['keep_open'] is False and k['cluster_cfg']['fast_graph'] is True
 

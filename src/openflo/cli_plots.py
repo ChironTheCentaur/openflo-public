@@ -281,11 +281,15 @@ def save_plots(s, out_dir, dpi=DEFAULT_DPI):
 
 
 def run_group_umap(samples, label, out_dir, random_state=42,
-                   dpi=DEFAULT_DPI, keep_open=None):
+                   dpi=DEFAULT_DPI, keep_open=None, n_components=2):
     """Pool `samples`, run UMAP on the pooled events and save ``<label>_umap.png``.
 
     The figure shows UMAP by cluster and by sample, plus FSC vs SSC when both
-    scatter channels exist. Returns the pooled sample.
+    scatter channels exist. With ``n_components=3`` (--umap-components 3) the
+    figure shows UMAP1 against UMAP2 of the 3-D embedding, and the run also
+    writes ``<label>_umap3d.gif`` (one turn, colored by cluster) and
+    ``<label>_umap3d.csv`` (UMAP1-3, cluster and source sample per event).
+    Returns the pooled sample.
     """
     print(f"\n-- UMAP: {label} ({len(samples)} samples)")
     combined_data = concatenate(samples)
@@ -293,7 +297,7 @@ def run_group_umap(samples, label, out_dir, random_state=42,
     ref.data = combined_data
     ref.name = label
     ref.umap_coords = None
-    ref.run_umap(random_state=random_state)
+    ref.run_umap(random_state=random_state, n_components=n_components)
 
     # Locate FSC/SSC channels — add as a third panel when present so we get
     # both the UMAP view *and* the classic flow-cytometry FSC vs SSC view of
@@ -321,7 +325,44 @@ def run_group_umap(samples, label, out_dir, random_state=42,
                 **background_kwargs(fig, fmt='png'))
     if not keeps_open(keep_open):
         plt.close(fig)
+    if n_components == 3:
+        save_group_umap3d(ref, label, out_dir, random_state)
+    else:
+        # An earlier 3-component run's files would sit beside this 2-D
+        # PNG as if they were its own.
+        for ext in ('gif', 'csv'):
+            stale = os.path.join(out_dir, f'{label}_umap3d.{ext}')
+            if os.path.exists(stale):
+                try:
+                    os.remove(stale)
+                except OSError as exc:
+                    # Open elsewhere (a spreadsheet, on Windows): say so and
+                    # draw the rest of the group's plots.
+                    print(f"  [!] Could not remove the old 3D file "
+                          f"{os.path.basename(stale)}: {exc}", flush=True)
     return ref
+
+
+def save_group_umap3d(ref, label, out_dir, random_state=42):
+    """``<label>_umap3d.csv`` and ``<label>_umap3d.gif`` of a pooled
+    sample carrying UMAP1-3; nothing when it has no UMAP3 (umap-learn
+    missing). Returns the paths written."""
+    from .table_export import frame_to_csv
+    from .view3d import save_embedding_turntable
+    cols = ['UMAP1', 'UMAP2', 'UMAP3']
+    df = ref.data
+    if not all(c in df.columns for c in cols):
+        return []
+    extra = [c for c in ('cluster', 'sample_origin') if c in df.columns]
+    csv = os.path.join(out_dir, f'{label}_umap3d.csv')
+    frame_to_csv(df[cols + extra].dropna(subset=cols), csv, index=False)
+    gif = os.path.join(out_dir, f'{label}_umap3d.gif')
+    labels = df['cluster'].to_numpy() if 'cluster' in df.columns else None
+    n = save_embedding_turntable(df[cols].to_numpy(), labels, gif,
+                                 axis_names=cols, seed=random_state)
+    print(f"  3D UMAP: {n:,} events -> {os.path.basename(gif)}, "
+          f"{os.path.basename(csv)}")
+    return [csv, gif]
 
 
 def show_saved_group_plots(out_dir):

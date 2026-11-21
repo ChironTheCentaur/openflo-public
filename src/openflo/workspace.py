@@ -42,6 +42,7 @@ from tkinter import ttk
 from typing import TYPE_CHECKING, Any
 
 from . import ui_errors
+from .cluster_caps import LEIDEN_FAST_GRAPH_DEFAULT
 from .dialog_inputs import read_int, read_number
 from .errors import note as note_handled
 from .paths import FCS_FILE_PATTERNS, is_fcs_file, is_single_fcs_file
@@ -332,7 +333,7 @@ class PipelineWorkspaceView(ttk.Frame):
         self._reproducible_var = tk.BooleanVar(
             value=bool(cfg.get('reproducible', True)))
         self._fast_graph_var = tk.BooleanVar(
-            value=bool(cfg.get('fast_graph', False)))
+            value=bool(cfg.get('fast_graph', LEIDEN_FAST_GRAPH_DEFAULT)))
         self._events_csv_var = tk.BooleanVar(
             value=bool(cfg.get('events_csv', False)))
 
@@ -382,7 +383,9 @@ class PipelineWorkspaceView(ttk.Frame):
         _me.pack(side='left', padx=(1, 8))
         _tip(_ed, _me, "Max events per run unit fed to clustering/embedding "
              "(subsampled if larger) — caps memory/time. 0 uses all "
-             "events.")
+             "events; PhenoGraph and Leiden still partition at most "
+             "200,000 of them and give the rest their nearest partitioned "
+             "event's cluster.")
         ttk.Label(prow2, text='Seed').pack(side='left')
         _se = ttk.Entry(prow2, textvariable=self._seed_var, width=10)
         _se.pack(side='left', padx=(1, 0))
@@ -1376,7 +1379,8 @@ class PipelineWorkspaceView(ttk.Frame):
                                   and embedding_available('pacmap')))
         self._concat_var.set(bool(cfg.get('concatenate', False)))
         self._reproducible_var.set(bool(cfg.get('reproducible', True)))
-        self._fast_graph_var.set(bool(cfg.get('fast_graph', False)))
+        self._fast_graph_var.set(bool(cfg.get('fast_graph',
+                                              LEIDEN_FAST_GRAPH_DEFAULT)))
         self._events_csv_var.set(bool(cfg.get('events_csv', False)))
 
     def _save_recipe(self) -> None:

@@ -510,8 +510,7 @@ class ComputeMixin(EditorMixin):
         each column the run wrote is stamped with them (result_stamp).
         ``settings`` (k, resolution, ...) go into the audit entry, which the
         session keeps and the Methods paragraph reads."""
-        self._clustering_busy = False
-        self._end_busy()
+        self._end_clustering_busy()
         self._clustering_invalidate(targets, outcome, embedded)
         col = self._cluster_label_column(method)
         outcome = outcome or {}
@@ -544,7 +543,7 @@ class ComputeMixin(EditorMixin):
         embedded = [n for n in done if n in embedded]
         self._stamp_clustering(method, emb_prefix, done, embedded, channels)
         if emb_prefix and embedded:
-            self._show_embedding_axes(emb_prefix, col)
+            self._show_embedding_axes(emb_prefix, col, embedded)
         self._schedule_replot(0)
         self._audit('cluster', method=method, column=col,
                     n_samples=len(done), samples=list(done),
@@ -582,17 +581,31 @@ class ComputeMixin(EditorMixin):
                   if method == 'flowsom' else ''))
         return done, skipped, why
 
-    def _show_embedding_axes(self, emb_prefix, col):
-        """Show the run's embedding: a dot plot of its two axes on a linear
-        scale, coloured by the label column."""
+    def _show_embedding_axes(self, emb_prefix, col, embedded=()):
+        """Show the run's embedding: a dot plot of its first two axes on a
+        linear scale, colored by the label column. A 3-component one also
+        opens Analyze > 3D plot on the active (else first embedded) sample,
+        colored by the same labels."""
         self.mode_var.set('dot')
         # Embedding coordinates are abstract → force a LINEAR axis scale
         # (the global default is log, tuned for fluorescence intensity).
-        self._channel_scale[f'{emb_prefix}1'] = 'linear'
-        self._channel_scale[f'{emb_prefix}2'] = 'linear'
+        third = [n for n in embedded if n in self._samples
+                 and f'{emb_prefix}3' in self._samples[n].data.columns]
+        for i in ((1, 2, 3) if third else (1, 2)):
+            self._channel_scale[f'{emb_prefix}{i}'] = 'linear'
         self.x_combo.set(self._fmt_channel(f'{emb_prefix}1'))
         self.y_combo.set(self._fmt_channel(f'{emb_prefix}2'))
         self.color_combo.set(self._fmt_channel(col))
+        if third:
+            name = self._active_sample if self._active_sample in third else third[0]
+            self._open_view3d_on(name, [f'{emb_prefix}{i}' for i in (1, 2, 3)],
+                                 color_column=col)
+        else:
+            # A 2-component run removes an earlier UMAP3: an open 3D plot
+            # showing it picks its axes again.
+            win = (self.__dict__.get('_tool_windows') or {}).get('view3d')
+            if win is not None and win.winfo_exists():
+                win.columns_changed()
 
     @staticmethod
     def _clustering_message(method, col, done, skipped, why, reset, pruned,
@@ -634,14 +647,26 @@ class ComputeMixin(EditorMixin):
             stamp_columns(s, [c for c in cols if c in s.data.columns],
                           f'cluster.{method}', used)
             if emb_prefix and n in embedded:
-                stamp_columns(s, [f'{emb_prefix}1', f'{emb_prefix}2'],
+                stamp_columns(s, [f'{emb_prefix}{i}' for i in (1, 2, 3)
+                                  if f'{emb_prefix}{i}' in s.data.columns],
                               f'embed.{emb_prefix.lower()}', used)
+
+    def _end_clustering_busy(self):
+        """A clustering run is over: clear its busy state, stop the busy
+        bar and hide its Cancel button."""
+        self._clustering_busy = False
+        self._end_busy()
+        btn = self.__dict__.get('_cluster_cancel_btn')
+        if btn is not None:
+            try:
+                btn.grid_remove()
+            except tk.TclError:
+                pass
 
     def _clustering_error(self, exc, started=None):
         """A clustering run failed. ``started`` are the samples it reached
         (None: unknown, every sample)."""
-        self._clustering_busy = False
-        self._end_busy()
+        self._end_clustering_busy()
         # A failed run may have written some columns before it stopped, but
         # only into the samples it reached: the others keep what batch
         # normalization kept for its undo.

@@ -213,11 +213,12 @@ CLUSTER_RESOLUTION_TIP = (
 # The hover tip on every "Fast graph" box (Cluster dialog, workspace).
 # openflo-run's --fast-graph help says the same.
 FAST_GRAPH_TIP = (
-    "Leiden only. Off (default): the standard graph, comparable with "
-    "earlier runs. On: link only each cell's actual nearest neighbors, as "
-    "PhenoGraph and Seurat do. Clustering runs about 6-9x faster and can "
-    "split populations the default graph merges, but the clusters differ, "
-    "so results are not comparable with runs made without it.")
+    "Leiden only. On (default): link only each cell's actual nearest "
+    "neighbors, as PhenoGraph and Seurat do. Off: the older graph that "
+    "links every pair of cells sharing a neighbor, which needs about 9x "
+    "the memory (about 21 GB at 200,000 events) and runs 6-9x slower. "
+    "Turn it off only to compare with runs made that way: the clusters "
+    "differ.")
 
 
 def named_choice(parent, var, names, **kw):

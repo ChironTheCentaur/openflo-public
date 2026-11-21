@@ -4,6 +4,7 @@
 
 - **File > Add FCS…** adds one or more FCS files (versions 2.0 to 3.2). You can also drag files or a folder onto the window.
 - **File > Load CSV…** loads a table of events, such as an OpenFlo export with cluster or UMAP columns.
+- The **＋ Add** dropdown at the top of the Samples & Gates panel offers the same, plus the example dataset. Its **Remove** dropdown takes the selected rows off the open tab only (**Remove from tab**) or unloads them from every tab (**Remove from session…**).
 - **File > Quick preview…** shows a density plot of a raw file before loading it.
 - **Tools > Files & checks > Watch folder…** loads new files as an instrument writes them.
 
@@ -16,7 +17,7 @@ Samples sit in groups (conditions). Drag a sample between groups in the panel, o
 ## Joining and trimming
 
 - **File > Concatenate samples…** joins samples with the same channels and scales into one new sample. Each event keeps a `__sample__` number saying where it came from.
-- The Downsample box above the plot sets Off, Display only or Display + data. Display + data trims every sample to the size of the smallest, for clustering and statistics too; setting it back restores all the events of every sample whose data has not changed since.
+- The **Events** dropdown above the plot sets downsampling to Off, Display only or Display + data, and the Max points cap (a preset, or **Custom…** to type one). Display + data trims every sample to the size of the smallest, for clustering and statistics too; setting it back restores all the events of every sample whose data has not changed since.
 
 ## Plates
 

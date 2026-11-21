@@ -180,8 +180,8 @@ def test_run_update_without_upstream_explains_and_does_not_pull(tmp_path,
                         lambda cmd, *a, **k: (calls.append(cmd), real(cmd, *a, **k))[1])
     ok, msg = update.run_update(kind='git')
     assert ok is False
-    assert 'no upstream' in msg and 'git checkout master' in msg
-    assert not any('pull' in c for c in calls), calls
+    assert 'no link to GitHub' in msg and 'pip install -U' in msg
+    assert not any('pull' in c or 'fetch' in c for c in calls), calls
 
 
 def test_current_version_reads_the_live_checkout_pyproject(tmp_path,

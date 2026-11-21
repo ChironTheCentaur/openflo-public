@@ -106,10 +106,13 @@ def test_side_panel_buttons_say_what_they_do(editor):
     _root, ed = editor
     labels = {str(w.cget('text')): w for w in sweep._walk(ed)
               if w.winfo_class() == 'TButton'}
-    for want in ('Delete gate', 'Delete all', 'Copy gates…', 'Populations…',
-                 'Undo', 'Redo', 'Fit', 'Pipeline', 'Layout…'):
+    for want in ('Delete gate', 'Copy gates…', 'Populations…',
+                 '↶ Undo', '↷ Redo', 'Fit', 'Pipeline', 'Layout…'):
         assert want in labels, want
-    for old in ('Clear', 'Clear all', 'Pops', 'Copy', '↶', '↷', '⌂'):
+    # Delete all gates is in Edit and the tree's right-click Remove menu,
+    # not a button a stray click can hit (Sky 11-20).
+    for old in ('Clear', 'Clear all', 'Delete all', 'Pops', 'Copy', '↶',
+                '↷', '⌂'):
         assert old not in labels, old
     tips = ed.__dict__.get('_tip_texts', {})
     for w in sweep._walk(ed):            # a symbol alone needs its tip

@@ -208,6 +208,8 @@ def test_offer_for_pip_and_git_updates_and_shows_the_notes(kind):
     assert p['notes'] == 'Added\n- Two.'
     assert p['link'] == ('Full release notes', _RES['url'])
     assert ('git pull' in p['text']) is (kind == 'git')
+    # A checkout on a merged branch is switched, so the offer says so.
+    assert ('has been merged' in p['text']) is (kind == 'git')
     assert ('pip install' in p['text']) is (kind == 'pip')
 
 

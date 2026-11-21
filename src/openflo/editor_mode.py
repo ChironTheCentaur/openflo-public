@@ -60,20 +60,14 @@ class ModeMixin(EditorMixin):
         """Grey out Highlight / Filter when there are no real gates to act on,
         and fall back to 'All events' if one was selected — so a stale mode
         can't keep drawing gates that were deleted."""
-        radios = getattr(self, '_display_radios', None)
-        if not radios:
-            return
         has = self._has_real_gates()
-        for key in ('highlight', 'filter'):
-            r = radios.get(key)
-            if r is not None:
-                try:
-                    r.state(['!disabled'] if has else ['disabled'])
-                except tk.TclError:
-                    pass
-        # View > Display's entries too (run as that menu opens).
-        menu = getattr(self, '_display_menu', None)
-        if menu is not None:
+        # The plot bar's Display dropdown and View > Display: Highlight
+        # gated and Filter to gated are entries 1 and 2 of both. Either may
+        # be missing (a menubar that failed to build, a test stub).
+        for name in ('_display_dd_menu', '_display_menu'):
+            menu = getattr(self, name, None)
+            if menu is None:
+                continue
             for idx in (1, 2):           # Highlight gated, Filter to gated
                 try:
                     menu.entryconfigure(

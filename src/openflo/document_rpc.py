@@ -39,7 +39,7 @@ METHODS = frozenset({
     'apply_gatingml', 'update_gate',
     'delete_gate',
     'lost_operands', 'same_population', 'stats', 'to_view',
-    'density', 'density_events', 'histogram', 'overlays', 'compensation',
+    'density', 'density_events', 'cloud3d', 'histogram', 'overlays', 'compensation',
     'set_compensation', 'save_session', 'export_stats_csv', 'export_stats_plt',
     'export_population_fcs', 'export_wsp', 'data_files',
     'unpack_project',

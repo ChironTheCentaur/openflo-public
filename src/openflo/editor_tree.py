@@ -996,6 +996,11 @@ class TreeMixin(EditorMixin):
         rm = self._ctx_submenu(menu)
         rm.add_command(label="Clear gates (keep sample)",
                        command=self._clear_selected_gate)
+        # Edit > Delete all gates, here too (it left the side panel's
+        # buttons, Sky 11-20). It asks first and can be undone. The label
+        # says it reaches past this sample: every sample the tab shows.
+        rm.add_command(label="Delete all gates (whole tab)…",
+                       command=self._clear_all)
         if not self._tabs().active.is_all:
             rm.add_command(label="From this tab",
                            command=self._remove_rows_from_tab)

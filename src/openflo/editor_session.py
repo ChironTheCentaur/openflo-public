@@ -20,6 +20,7 @@ from . import result_stamp as _stamps
 from . import session_lock as _lock
 from . import session_models as _models
 from . import tk_threads, ui_errors
+from .channel_roles import embedding_prefix
 from .editor_base import EditorMixin
 from .errors import note
 from .paths import is_fcs_file, relink_hints, saved_file_name
@@ -96,6 +97,11 @@ def _discard_quietly(path):
         os.remove(path)
     except FileNotFoundError:
         pass
+
+
+def _short(name, most=28):
+    """`name` cut to `most` characters with an ellipsis, for a button."""
+    return name if len(name) <= most else name[:most - 1] + '…'
 
 
 def _coerce_cluster_ids(lbls):
@@ -590,10 +596,8 @@ class SessionMixin(EditorMixin):
             # sample (no other reason for a sidecar) would lose on reload.
             if (cu.endswith('_pos') or cu.startswith(('MESF:', 'U:', 'D:'))):
                 return True
-            up = cu.upper()
-            for p in ('UMAP', 'TSNE', 'TRIMAP', 'PACMAP', 'PHATE'):
-                if up.startswith(p) and up[len(p):] in ('1', '2'):
-                    return True
+            if embedding_prefix(cu) is not None:
+                return True
         return False
 
     def _write_session(self, path):
@@ -1205,15 +1209,22 @@ class SessionMixin(EditorMixin):
                        on_error=failed, busy_msg="Expanding project…")
 
     def _open_project_archive_path(self, path, then=None, confirmed=False):
-        """Unpack a project archive beside itself, off the Tk thread (a big
+        """Open a project archive: a copy already unpacked from it when
+        there is one (``project_copies.find_copy``: beside it or in the
+        internal project folder), else unpack it, off the Tk thread (a big
         archive on a slow USB stick takes minutes; the window keeps
-        answering), then open its session. The offer to save the current
-        session comes once the unpack is done, so work done meanwhile is
+        answering and the status line counts the megabytes), beside it or,
+        on a removable drive, in the internal project folder
+        (``project_copies.unpack_destination``); then open its session. A
+        copy whose session was saved since it was unpacked is asked about:
+        open it, or unpack a fresh copy. The offer to save the current
+        session comes once the files are there, so work done meanwhile is
         asked about too (unless `confirmed`: a caller already asked). One
         project opens at a time; another is refused until it has.
         ``then(opened)`` is called on the Tk thread once it has opened
         (True) or not (False; already reported)."""
         from .project_archive import open_project_archive
+        from .project_copies import find_copy, unpack_destination
         name = os.path.basename(path)
         busy = self.__dict__.get('_project_opening')
         if busy:
@@ -1223,22 +1234,29 @@ class SessionMixin(EditorMixin):
             return self._session_open_done(False, then)
         self._project_opening = name
         busy_msg = f"Opening project {name}…"
+        unpacking = f"Unpacking project {name}"
 
-        def done(result):
+        def not_opened():
             self._project_opening = None
-            sess, _ = result
-            self._audit('project.open', path=path,
-                        folder=os.path.dirname(sess))
+            status = self.status_var.get()
+            if status == busy_msg or status.startswith(unpacking):
+                # refused or cancelled with a dialog only: nothing is
+                # opening any more
+                self.status_var.set(f"Project {name} was not opened.")
+            self._session_open_done(False, then)
+
+        def opened(sess, reused):
+            self._project_opening = None
+            folder = os.path.dirname(sess)
+            self._audit('project.open', path=path, folder=folder,
+                        reused=reused)
             if not self._load_session_path(sess, confirmed=confirmed):
-                if self.status_var.get() == busy_msg:
-                    # refused or cancelled with a dialog only: nothing is
-                    # opening any more
-                    self.status_var.set(f"Project {name} was not opened.")
-                self._session_open_done(False, then)
+                not_opened()
                 return
             self.status_var.set(
-                f"Opened project archive {name}; its files "
-                f"are in {os.path.dirname(sess)}")
+                f"Opened project {name} from the copy already unpacked in "
+                f"{folder}" if reused else
+                f"Opened project archive {name}; its files are in {folder}")
             self._session_open_done(True, then)
 
         def failed(exc):
@@ -1248,9 +1266,58 @@ class SessionMixin(EditorMixin):
                        "The project could not be opened.", exc, path)
             self._session_open_done(False, then)
 
-        self.run_async(lambda: open_project_archive(path), on_done=done,
+        def unpack():
+            report = self._unpack_progress(unpacking)
+            self.run_async(
+                lambda: open_project_archive(
+                    path, unpack_destination(path), progress=report),
+                on_done=lambda r: opened(r[0], False), on_error=failed,
+                busy_msg=busy_msg)
+
+        def found(copy):
+            if copy is None:
+                unpack()
+            elif not copy.changed:
+                opened(copy.session, True)
+            else:
+                choice = self._ask_choice(
+                    "Project already unpacked",
+                    f"{name} was unpacked before, into {copy.folder}, and "
+                    "its session there has been saved since.\n\nOpen that "
+                    "copy with the changes saved in it, or unpack a fresh "
+                    f"copy of the project as {name} holds it?",
+                    [("Open saved copy", 'copy'),
+                     ("Unpack fresh copy", 'fresh'), ("Cancel", 'cancel')],
+                    tips=["Open the folder unpacked before, with the work "
+                          "saved there. Nothing is unpacked again.",
+                          "Unpack the archive again into a new folder, as "
+                          "it was saved. The earlier copy is kept as it "
+                          "is."])
+                self._audit('project.copy_choice', path=path, choice=choice)
+                if choice == 'copy':
+                    opened(copy.session, True)
+                elif choice == 'fresh':
+                    unpack()
+                else:
+                    not_opened()
+
+        self.run_async(lambda: find_copy(path), on_done=found,
                        on_error=failed, busy_msg=busy_msg)
         return None
+
+    def _unpack_progress(self, text):
+        """A ``progress(done, total)`` for ``open_project_archive``, run on
+        a worker: it puts ``<text>: <done> of <total> MB`` on the status
+        line, each time the whole megabytes written change."""
+        last = [-1]
+
+        def report(done, total):
+            mb = done // 1_000_000
+            if mb != last[0]:
+                last[0] = mb
+                self._busy(f"{text}: {mb:,} of "
+                           f"{(total + 999_999) // 1_000_000:,} MB")
+        return report
 
     @staticmethod
     def _session_open_done(opened, then):
@@ -2002,6 +2069,14 @@ class SessionMixin(EditorMixin):
                 if nm not in hits and p not in taken:
                     hits[nm] = p
                     taken.add(p)
+        return self._load_relinked(hits, folder)
+
+    def _load_relinked(self, hits, folder):
+        """Load the offline samples named in `hits` (``{name: file}``)
+        from those files, with their saved gates, and return
+        ``(found, still_missing)`` sample names; `folder` is where they
+        were looked for (for the audit trail)."""
+        off = getattr(self, '_offline_samples', None) or {}
         samples, gates = [], {}
         for name, path in hits.items():
             rec = off.pop(name)
@@ -2016,20 +2091,151 @@ class SessionMixin(EditorMixin):
         still = sorted(n for n in off if n not in self._samples)
         return sorted(hits), still
 
+    def _relink_from_project(self, folder):
+        """Load the offline samples' files from the unpacked project in
+        `folder`, which the user chose: every match there
+        (``project_copies.project_matches``, by sample name, file name and
+        data set; verified or not). Returns ``(found, still_missing)``
+        sample names."""
+        from .project_copies import folder_files, project_matches
+        off = getattr(self, '_offline_samples', None) or {}
+        entries = [rec['entry'] for name, rec in off.items()
+                   if name not in self._samples]
+        hits = folder_files(project_matches(entries, [folder]), folder)
+        return self._load_relinked(hits, folder)
+
+    def _load_missing_from_project(self, source):
+        """Load the offline samples from `source`, which the user chose: an
+        unpacked project folder, or a project archive, reused when a copy
+        of it was unpacked before, else unpacked now off the Tk thread with
+        the megabytes counted on the status line (``project_copies``). The
+        samples are those of the session open when it was chosen: one
+        opened meanwhile is left alone."""
+        from .project_archive import open_project_archive
+        from .project_copies import find_copy, unpack_destination
+        name = os.path.basename(source)
+        report = self._unpack_progress(f"Unpacking project {name}")
+        held = self.__dict__.get('_offline_samples')
+
+        def work():
+            if os.path.isdir(source):
+                return source
+            c = find_copy(source)
+            if c is not None:
+                return c.folder
+            sess, _ = open_project_archive(
+                source, unpack_destination(source), progress=report)
+            return os.path.dirname(sess)
+
+        def done(folder):
+            if self.__dict__.get('_offline_samples') is not held:
+                self.status_var.set(
+                    f"Project {name} is ready, but another session was "
+                    "opened meanwhile: nothing was loaded from it.")
+                return
+            found, still = self._relink_from_project(folder)
+            if still:
+                ui_errors.showwarning(
+                    "Some files still missing",
+                    f"Found {len(found)} of {len(found) + len(still)} in "
+                    f"project {name}. Not found there: "
+                    f"{', '.join(still[:8])}"
+                    + (" …" if len(still) > 8 else '')
+                    + "\n\nTheir gates stay in the session.", parent=self)
+            else:
+                self.status_var.set(
+                    f"Found all {len(found)} missing sample file(s) in "
+                    f"project {name}; loading them")
+
+        def failed(exc):
+            self.status_var.set(f"Open project failed: {exc}")
+            show_error(self, "Can't open project",
+                       "The project could not be opened.", exc, source)
+
+        self.run_async(work, on_done=done, on_error=failed,
+                       busy_msg=f"Opening project {name}…")
+
+    def _missing_sources(self, names):
+        """``[(project folder or archive, samples it may hold), ...]``
+        beside the session for the offline samples `names`, most first:
+        unpacked projects holding files of their names (not verified as
+        the same recordings, or they would have loaded), then archives
+        listing them whose copy is not among those. At most 3."""
+        sess_dir = getattr(self, '_session_dir', '') or ''
+        if not sess_dir:
+            return []
+        from .project_copies import (
+            candidate_folders,
+            find_copy,
+            project_archives,
+            project_folders,
+            project_matches,
+        )
+        off = getattr(self, '_offline_samples', None) or {}
+        entries = [off[n]['entry'] for n in names if n in off]
+        out = candidate_folders(project_matches(entries,
+                                                project_folders(sess_dir)))
+        have = {f for f, _n in out}
+        for arc in project_archives(sess_dir, names):
+            c = find_copy(arc)
+            if c is None or c.folder not in have:
+                out.append((arc, 0))
+        return out[:3]
+
+    def _ask_missing_source(self, names, sources, shown):
+        """Ask which project of `sources` (``_missing_sources``) to load
+        the missing samples from, or to choose a folder; returns a source,
+        'folder' or 'cancel'. When two projects hold as many samples,
+        neither is the default button: the user picks."""
+        lines = '\n'.join(
+            f"  • {os.path.basename(src)}"
+            + (f" ({n} of them)" if n else " (a project archive)")
+            for src, n in sources)
+        choices = [(f"Load from {_short(os.path.basename(src))}", src)
+                   for src, _n in sources]
+        tie = len(sources) > 1 and sources[0][1] == sources[1][1]
+        choices += [("Choose folder…", 'folder'), ("Not now", 'cancel')]
+        return self._ask_choice(
+            "Sample files not found",
+            f"The files for {len(names)} sample(s) were not found:\n\n"
+            f"{shown}\n\nFiles of the same names are in:\n{lines}\n\n"
+            "OpenFlo cannot tell whether they are the same recordings "
+            "(instruments use the same file names every day), so check "
+            "that this is the right project before loading from it.",
+            choices, default=len(choices) - 1 if tie else 0,
+            tips=[f"Load the missing samples from {os.path.basename(src)}, "
+                  "with their saved gates (an archive is unpacked once, "
+                  "then reused)." for src, _n in sources]
+            + ["Pick a folder to look for the files in by name.",
+               "Keep the samples offline: their gates stay in the "
+               "session."])
+
     def _offer_locate_missing(self):
-        """Name the samples whose files were not found and offer to look for
-        them in a folder the user picks."""
+        """Name the samples whose files were not found and offer to load
+        them from a project beside the session that holds files of their
+        names (``_missing_sources``), or to look for them in a folder the
+        user picks."""
         _, gates = _offline_parts(self)
         names = sorted(gates)
         if not names:
             return
         from tkinter import filedialog, messagebox
         shown = '\n'.join(f"  • {n}" for n in names[:12])
-        more = f"\n  … and {len(names) - 12} more" if len(names) > 12 else ''
-        if not messagebox.askyesno(
+        if len(names) > 12:
+            shown += f"\n  … and {len(names) - 12} more"
+        sources = self._missing_sources(names)
+        if sources:
+            choice = self._ask_missing_source(names, sources, shown)
+            self._audit('session.missing_choice', choice=choice)
+            if choice == 'cancel':
+                return
+            if choice != 'folder':
+                self._load_missing_from_project(choice)
+                return
+        elif not messagebox.askyesno(
                 "Sample files not found",
                 f"The files for {len(names)} sample(s) were not found:\n\n"
-                f"{shown}{more}\n\nTheir gates are kept and saved with the "
+                f"{shown}\n\nTheir gates are kept and saved with the "
                 "session. Look for the files in a folder now?", parent=self):
             return
         folder = filedialog.askdirectory(
@@ -2127,6 +2333,14 @@ class SessionMixin(EditorMixin):
             pass
 
         msg = f"Loading session: {len(paths) + len(processed_loads)} sample(s)"
+        moved = sorted({os.path.basename(p.found_in) for p in plan
+                        if p.found_in})
+        if moved:
+            n = sum(1 for p in plan if p.found_in)
+            msg += (f" — {n} found in project {', '.join(moved)} (the same "
+                    "recordings)")
+            self._audit('session.found_in_project', samples=sorted(
+                p.name for p in plan if p.found_in), folders=moved)
         if missing:
             msg += f" — missing FCS for: {', '.join(missing[:4])}"
             if len(missing) > 4:

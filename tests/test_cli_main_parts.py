@@ -509,7 +509,7 @@ def test_every_option_reaches_run(calls, monkeypatch, trial):
           '--bead-um', '6', '--doublet-tol', '0.1', '--seed', '7',
           '--palette', 'tab10', '--pairs', 'FL1-A:FL2-A', '--batch-correct',
           '--cytonorm-mode', 'controls', '--cytonorm-control', 'a0',
-          '--cytonorm-metaclusters', '5', '--qc')
+          '--cytonorm-metaclusters', '5', '--qc', '--umap-components', '3')
     kw = _run_kw(calls)
     region = kw.pop('region_gates')
     assert [g['name'] for g in region] == ['big']
@@ -526,7 +526,7 @@ def test_every_option_reaches_run(calls, monkeypatch, trial):
         'random_state': 7, 'palette_name': 'tab10',
         'pairs': [('FL1-A', 'FL2-A')], 'batch_correct': True,
         'cytonorm_mode': 'controls', 'cytonorm_control': 'a0',
-        'cytonorm_metaclusters': 5, 'qc': True}
+        'cytonorm_metaclusters': 5, 'qc': True, 'umap_components': 3}
     assert calls['run'][0][0] == ()
 
 
@@ -535,7 +535,8 @@ def test_default_options_reach_run(calls, monkeypatch, trial):
     kw = _run_kw(calls)
     assert kw['max_events'] is None          # 0 means every event
     assert kw['reproducible'] is True
-    assert kw['fast_graph'] is False and kw['qc'] is False
+    assert kw['fast_graph'] is True and kw['qc'] is False   # Leiden fast graph
+    assert kw['umap_components'] == 2
 
 
 # ── _write_outputs and the return code ──────────────────────────────────────

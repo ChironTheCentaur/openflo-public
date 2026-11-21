@@ -40,7 +40,8 @@ HELPERS = {
         (('--reproducible',), 'reproducible', False, None, 0, True, None, FLAG),
         (('--no-reproducible',), 'no_reproducible', False, None, 0, True, None, FLAG),
         (('--resolution',), 'resolution', 1.0, None, None, None, '_positive_float', STORE),
-        (('--fast-graph',), 'fast_graph', False, None, 0, True, None, FLAG),
+        (('--fast-graph', '--no-fast-graph'), 'fast_graph', None, None, 0,
+         None, None, 'BooleanOptionalAction'),
         (('--n-metaclusters',), 'n_metaclusters', FLOWSOM_DEFAULT_METACLUSTERS,
          None, None, None, 'int', STORE),
         (('--max-events',), 'max_events', 0, None, None, None, 'int', STORE),
@@ -90,6 +91,7 @@ HELPERS = {
         (('--skip-existing',), 'skip_existing', False, None, 0, True, None, FLAG),
         (('--export-wsp',), 'export_wsp', '', None, None, None, None, STORE),
         (('--seed',), 'seed', 42, None, None, None, 'int', STORE),
+        (('--umap-components',), 'umap_components', 2, (2, 3), None, None, 'int', STORE),
         (('--dpi',), 'dpi', DEFAULT_DPI, None, None, None, '_dpi', STORE),
         (('--palette',), 'palette', 'auto', None, None, None, None, STORE),
         (('-v', '--verbose'), 'verbose', 0, None, 0, None, None, '_CountAction'),
@@ -190,7 +192,7 @@ def _values(spec, rng):
     """Generated valid values for one option, as strings, with what each parses to."""
     choices, type_name = spec[3], spec[6]
     if choices:
-        return [(c, c) for c in choices]
+        return [(str(c), c) for c in choices]
     if type_name == 'int':
         n = rng.randint(2, 900)
         return [('0', 0), (str(n), n)]
@@ -212,7 +214,10 @@ def test_every_option_parses_generated_values():
         flag, dest = spec[0][-1], spec[1]
         if spec[4] == 0:
             ns = build_parser().parse_args([flag])
-            assert getattr(ns, dest) == (1 if spec[7] == '_CountAction' else True), flag
+            want = (1 if spec[7] == '_CountAction' else
+                    not flag.startswith('--no-')
+                    if spec[7] == 'BooleanOptionalAction' else True)
+            assert getattr(ns, dest) == want, flag
             continue
         for text, want in _values(spec, rng):
             ns = build_parser().parse_args([flag, text])
@@ -225,7 +230,7 @@ def test_every_option_parses_generated_values():
                          ids=lambda s: s[0][-1])
 def test_a_valued_option_takes_exactly_one_value(spec, capsys):
     flag = spec[0][-1]
-    value = spec[3][0] if spec[3] else '7'
+    value = str(spec[3][0]) if spec[3] else '7'
     with pytest.raises(SystemExit) as exc:
         build_parser().parse_args([flag])
     assert exc.value.code == 2
@@ -239,7 +244,10 @@ def test_a_valued_option_takes_exactly_one_value(spec, capsys):
                          ids=lambda s: s[0][-1])
 def test_a_choice_option_refuses_other_values(spec, capsys):
     with pytest.raises(SystemExit) as exc:
-        build_parser().parse_args([spec[0][-1], 'gen_not_a_choice'])
+        # An int option's wrong value must still be an int to reach the
+        # choices check.
+        bad = '7' if spec[6] == 'int' else 'gen_not_a_choice'
+        build_parser().parse_args([spec[0][-1], bad])
     assert exc.value.code == 2
     assert 'invalid choice' in capsys.readouterr().err
 

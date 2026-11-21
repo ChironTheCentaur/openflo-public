@@ -102,7 +102,8 @@ def test_a_local_path_is_linked_relative_to_the_session_folder(tmp_path,
     monkeypatch.chdir(sub)
     f = _touch(tmp_path / 'proj' / 'raw' / 'a.fcs')
     assert P.relink_hints(f, str(tmp_path / 'proj')) == {
-        'basename': 'a.fcs', 'rel_path': 'raw/a.fcs'}
+        'basename': 'a.fcs', 'rel_path': 'raw/a.fcs',
+        'fcs_id': P.fcs_identity(f)}
     # A sample loaded by a name relative to where OpenFlo runs.
     rel_here = os.path.relpath(f, sub)
     assert P.relink_hints(rel_here, str(tmp_path / 'proj'))['rel_path'] == (
@@ -127,7 +128,8 @@ def test_a_posix_name_with_a_colon_is_linked_and_found_by_its_name(
     here = _touch(sess / 'a:b.fcs')
     monkeypatch.chdir(sess)
     assert P.relink_hints('a:b.fcs', str(sess)) == {
-        'basename': 'a:b.fcs', 'rel_path': 'a:b.fcs'}
+        'basename': 'a:b.fcs', 'rel_path': 'a:b.fcs',
+        'fcs_id': P.fcs_identity(str(here))}
     assert so.resolve_sample_path(
         {'path': '/gone/a:b.fcs', 'basename': 'a:b.fcs'}, str(sess)) == here
 
@@ -505,3 +507,26 @@ def test_an_older_controls_file_is_read_from_the_working_folder(
 def test_inline_controls_stay_relative_to_the_working_folder():
     from openflo.cli_unmix import load_unmix_controls
     assert load_unmix_controls('{"FL1": "ss_a.fcs"}') == {'FL1': 'ss_a.fcs'}
+
+
+def test_a_files_identity_is_its_size_and_head(tmp_path):
+    """fcs_id tells two recordings of one name apart by their first bytes
+    and size, and is read again when the file changes."""
+    a = tmp_path / 'a.fcs'
+    a.write_bytes(b'x' * (P.FCS_ID_HEAD + 10))
+    one = P.fcs_identity(str(a))
+    assert one == {'bytes': P.FCS_ID_HEAD + 10, 'head': one['head']}
+    assert len(one['head']) == 32
+    # a change past the head alone is not seen (by design), one in it is
+    b = tmp_path / 'b.fcs'
+    b.write_bytes(b'x' * P.FCS_ID_HEAD + b'y' * 10)
+    assert P.fcs_identity(str(b)) == one
+    a.write_bytes(b'y' + b'x' * (P.FCS_ID_HEAD + 9))
+    os.utime(a, ns=(1, 1))
+    assert P.fcs_identity(str(a))['head'] != one['head']
+    assert P.fcs_identity(str(tmp_path / 'gone.fcs')) is None
+    assert P.same_fcs_identity(one, P.fcs_identity(str(b)))
+    assert not P.same_fcs_identity(None, one)
+    assert not P.same_fcs_identity(one, None)
+    assert P.relink_hints(str(tmp_path / 'gone.fcs'), str(tmp_path)).get(
+        'fcs_id') is None

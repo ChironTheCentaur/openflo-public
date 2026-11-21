@@ -90,7 +90,7 @@ def stubbed(monkeypatch):
     monkeypatch.setattr(cli_parallel, 'save_plots', fake_save_plots)
     monkeypatch.setattr(cli_compare, 'run_group_umap',
                         lambda samples, label, out_dir, random_state=42,
-                        dpi=None, keep_open=None: (
+                        dpi=None, keep_open=None, n_components=2: (
                             calls['umap'].append(
                                 (label, [s.name for s in samples])),
                             calls.setdefault('dpi', []).append(('umap', dpi)),
@@ -1247,7 +1247,7 @@ def test_cluster_receives_the_cli_flags(two_groups, tmp_path, stubbed,
     assert len(seen) == 10
     first, shared_a, second = seen[0], seen[4], seen[-1]
     assert (first['k'], first['random_state'], first['max_events'],
-            first['reproducible']) == (17, 7, None, True)
+            first['reproducible']) == (17, 7, 200_000, True)  # its own cap
     assert (shared_a['k'], shared_a['random_state'],
             shared_a['reproducible']) == (17, 7, True)
     assert (second['max_events'], second['reproducible']) == (900, False)

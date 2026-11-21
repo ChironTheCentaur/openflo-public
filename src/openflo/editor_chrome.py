@@ -212,12 +212,6 @@ class ChromeMixin(EditorMixin):
         pal = apply_theme(self, mode)
         write_pref('theme', mode)
         try:
-            # The theme sizes the tray's buttons: one row or two again.
-            self.update_idletasks()
-            self._fit_sample_io_bar()
-        except (TclError, AttributeError):
-            pass
-        try:
             self.configure(bg=pal['bg'])  # type: ignore[call-arg]
             self._left_host.configure(bg=pal['bg'])
             self._ws_host.configure(bg=pal['bg'])

@@ -82,7 +82,10 @@ class Dialog:
         combos = [w for w in ws if w.winfo_class() == 'TCombobox']
         (self.events,) = [w for w in combos
                           if 'Custom…' in tuple(w.cget('values'))]
-        (self.embed,) = [w for w in combos if w is not self.events]
+        (self.dims,) = [w for w in combos
+                        if tuple(map(str, w.cget('values'))) == ('2', '3')]
+        (self.embed,) = [w for w in combos
+                         if w is not self.events and w is not self.dims]
         (self.number,) = [w for w in ws if w.winfo_class() == 'TEntry']
         (self.markers,) = [w for w in ws if w.winfo_class() == 'Listbox']
         (self.run,) = [w for w in ws if w.winfo_class() == 'TButton'
@@ -114,14 +117,14 @@ def test_every_box_has_a_live_variable_after_the_build(ed):
              + [(w, 'variable') for w in d.checks.values()]
              + [(w, 'textvariable') for w in d.spins.values()]
              + [(d.events, 'textvariable'), (d.embed, 'textvariable'),
-                (d.number, 'textvariable')])
+                (d.dims, 'textvariable'), (d.number, 'textvariable')])
     names = {d.var(w, opt) for w, opt in boxes}
     # method, k, resolution, grid, metaclusters, fast graph, embedding,
-    # events, number, all samples, reproducible
-    assert len(names) == 11
+    # components, events, number, all samples, reproducible
+    assert len(names) == 12
     for name in names:
         assert ed.tk.call('info', 'exists', name), name
-    assert d.events.get() == 'Full'
+    assert d.events.get() == 'Default'
     assert d.embed.get() == 'UMAP'
     assert ed.getvar(d.var(d.checks[REPRO])) in (1, True, '1')
 
@@ -193,7 +196,7 @@ def test_rows_are_made_in_order_so_tab_moves_down_the_dialog(ed):
         ('TLabel', '(PhenoGraph: needs Reproducible)'),
         ('TCheckbutton', 'Fast graph'),
         ('TLabel', '(set above the populations you expect)'),
-        ('TLabel', 'Embedding (for visualization):'), ('TCombobox', ''),
+        ('TLabel', 'Embedding (for visualization):'), ('TFrame', ''),
         ('TLabel', '(PHATE need pip install openflo[embed])'),
         ('TLabel', 'Events / sample:'), ('TFrame', ''),
         ('TLabel', 'Markers:'), ('TFrame', ''),
@@ -212,7 +215,8 @@ def test_typing_in_the_number_box_switches_to_custom(ed):
 
 @pytest.mark.parametrize('label', sorted(METHODS))
 @pytest.mark.parametrize('mode,number,cap', [
-    ('Full', '', None), ('Smallest in group', '', None),
+    ('Default', '', None), ('All events', '', None),
+    ('Smallest in group', '', None),
     ('Custom…', '1,500', 1500)])
 def test_run_queues_the_job_for_each_method_and_events_mode(
         ed, label, mode, number, cap):
@@ -236,7 +240,7 @@ def test_run_queues_the_job_for_each_method_and_events_mode(
         'resolution': 1.0 if method == 'flowsom' else 0.7,
         'channels': ['FL1-A', 'FL1-H'], 'reproducible': True,
         'fast_graph': method == 'leiden', 'downsample': mode,
-        'custom_n': cap}
+        'custom_n': cap, 'embed_dims': 2}
     assert not d.dlg.winfo_exists()
 
 
@@ -248,7 +252,7 @@ def test_run_defaults_and_the_pre_ticked_markers(ed):
         'method': 'phenograph', 'all_samples': False, 'k': 30, 'grid': 10,
         'n_meta': 20, 'embedding': 'UMAP', 'resolution': 1.0,
         'channels': None, 'reproducible': True, 'fast_graph': False,
-        'downsample': 'Full', 'custom_n': None}
+        'downsample': 'Default', 'custom_n': None, 'embed_dims': 2}
 
 
 def test_phenograph_without_reproducible_sends_no_resolution(ed):

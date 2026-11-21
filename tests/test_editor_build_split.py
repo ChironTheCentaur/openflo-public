@@ -23,7 +23,7 @@ BUILDERS = (
     '_build_main_split', '_build_left_panel', '_build_sample_io_bar',
     '_build_gate_tree', '_build_side_buttons', '_build_log_console',
     '_build_right_column', '_build_plot_controls', '_build_axes_row',
-    '_build_mode_row', '_build_gate_tool_row', '_build_display_row',
+    '_build_mode_row', '_build_gate_tool_row',
     '_build_plot_area', '_build_histogram_sliders', '_build_load_progress',
     '_build_status_bar', '_build_window_hooks', '_build_tree_bindings',
 )
@@ -87,13 +87,17 @@ def test_the_built_window_has_its_key_widgets(editor):
     assert 'sample' in ed.gate_tv.tk.splitlist(
         ed.gate_tv.tk.call(str(ed.gate_tv), 'tag', 'names'))
     # The plot control combos, all inside the control bar.
-    for combo in (ed.x_combo, ed.y_combo, ed.color_combo, ed.hist_y_combo,
-                  ed._mp_combo):
+    for combo in (ed.x_combo, ed.y_combo, ed.color_combo, ed.hist_y_combo):
         assert isinstance(combo, ttk.Combobox)
         assert str(combo).startswith(str(ed._ctrl_bar))
     assert ed.mode_var.get() == 'pseudocolor'
     assert ed.gate_tool_var.get() == 'quadrant'
-    assert set(ed._display_radios) == {'all', 'highlight', 'filter'}
+    # Display and Events dropdowns, in the control bar too.
+    for mb in (ed._display_mb, ed._events_mb):
+        assert isinstance(mb, ttk.Menubutton)
+        assert str(mb).startswith(str(ed._ctrl_bar))
+    assert ed._display_mb.cget('text') == 'All events'
+    assert ed._events_mb.cget('text') == 'Events: Display · 60k'
     # The log + console pane, in the left panel.
     assert ed._log_text.winfo_class() == 'Text'
     assert str(ed._console_entry).startswith(str(ed._log_frame))

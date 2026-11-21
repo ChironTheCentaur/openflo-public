@@ -188,7 +188,7 @@ DISK_MARGIN = 64 << 20
 CHUNK = 1 << 20
 
 
-def _safe_member(name):
+def safe_member(name):
     """A member name that stays inside the folder it is unpacked into: no
     absolute path, drive, ``..``, backslash or control character, and not
     too long or too deep."""
@@ -304,14 +304,14 @@ def check_project_archive(zf, archive_path, max_bytes=None):
         _refuse(archive_path, f"holds more than {MAX_MEMBERS:,} files")
     # The name as stored: on Windows zipfile turns a backslash into '/' and
     # cuts at a NUL, which would let a name refused elsewhere through.
-    bad = [i.orig_filename for i in infos if not _safe_member(i.orig_filename)]
+    bad = [i.orig_filename for i in infos if not safe_member(i.orig_filename)]
     if bad:
         _refuse(archive_path, "holds a file that would be written outside "
                 f"its folder ({bad[0]!r})")
     manifest = _read_manifest(zf, archive_path)
     session = manifest.get('session') or SESSION_NAME
     if (not isinstance(session, str) or session not in names
-            or not _safe_member(session) or '/' in session):
+            or not safe_member(session) or '/' in session):
         raise ProjectArchiveError(
             f"{os.path.basename(archive_path)} has no session file.")
     packed_files = _packed_files(manifest, archive_path)
@@ -437,9 +437,12 @@ def unpack_folder_for(archive_path):
     return out
 
 
-def open_project_archive(archive_path, dest=None, *, max_bytes=None):
+def open_project_archive(archive_path, dest=None, *, max_bytes=None,
+                         progress=None):
     """Unpack the project archive at `archive_path` into `dest` (a new
     folder beside it by default) and return ``(session_path, manifest)``.
+    ``progress(done, total)``, when given, is called with the bytes
+    written so far and in all, before the first file and after each one.
 
     Everything is checked first (``check_project_archive``; `max_bytes`
     caps the unpacked size, as a phone holding it in memory needs); with no
@@ -460,8 +463,14 @@ def open_project_archive(archive_path, dest=None, *, max_bytes=None):
                         f"disk has {free // 1_000_000:,} MB free")
         work = tempfile.mkdtemp(prefix='.openflo-unpack-', dir=parent)
         try:
+            done = 0
+            if progress is not None:
+                progress(done, unpacked)
             for info, target, declared in members:
                 _extract(zf, info, work, target, declared)
+                done += info.file_size if declared is None else declared
+                if progress is not None:
+                    progress(done, unpacked)
             os.replace(work, dest)
         except BaseException:
             shutil.rmtree(work, ignore_errors=True)

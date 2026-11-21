@@ -13,6 +13,7 @@ from typing import Any
 import numpy as np
 
 from . import ui_errors
+from .channel_roles import embedding_prefix
 from .editor_base import EditorMixin
 from .errors import note as note_handled
 from .paths import is_fcs_file
@@ -801,10 +802,11 @@ class ToolsMixin(EditorMixin):
             if c in own:
                 continue
             s = str(c)
-            emb = next((p for p in ('UMAP', 'TSNE', 'TRIMAP', 'PACMAP', 'PHATE')
-                        if s.upper() == p + '1' or s.upper() == p + '2'), None)
+            emb = embedding_prefix(s)
             if emb is not None:
-                item = f'{emb} embedding ({emb}1/{emb}2)'
+                trio = f'{emb}3' in sample.data.columns
+                item = (f'{emb} embedding ({emb}1/{emb}2/{emb}3)' if trio
+                        else f'{emb} embedding ({emb}1/{emb}2)')
             else:
                 item = self._CLUSTER_COLUMN_NAMES.get(s)
                 item = f'{item} ({s})' if item else s

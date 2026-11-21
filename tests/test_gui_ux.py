@@ -176,8 +176,10 @@ def test_display_modes_greyed_without_real_gates():
         _load_sample(ed)                       # no gates
         ed._set_active_sample('s1')
         ed._sync_display_mode_availability()
-        assert 'disabled' in ed._display_radios['highlight'].state()
-        assert 'disabled' in ed._display_radios['filter'].state()
+        dd = ed._display_dd_menu          # plot bar's Display dropdown
+        assert dd.entrycget(1, 'state') == 'disabled'      # Highlight gated
+        assert dd.entrycget(2, 'state') == 'disabled'      # Filter to gated
+        assert dd.entrycget(0, 'state') == 'normal'        # All events
 
         # a stale highlight selection falls back to 'all'
         ed.gate_display_var.set('highlight')
@@ -188,13 +190,13 @@ def test_display_modes_greyed_without_real_gates():
         ed._sample_gates['s1'] = {
             'g1': {'kind': 'rect', 'parent_id': None, 'id': 'g1'}}
         ed._sync_display_mode_availability()
-        assert 'disabled' not in ed._display_radios['highlight'].state()
+        assert dd.entrycget(1, 'state') == 'normal'
 
         # an autoclean-only gate does NOT count as a real gate
         ed._sample_gates['s1'] = {
             'a1': {'kind': 'autoclean', 'parent_id': None, 'id': 'a1'}}
         ed._sync_display_mode_availability()
-        assert 'disabled' in ed._display_radios['filter'].state()
+        assert dd.entrycget(2, 'state') == 'disabled'
     finally:
         root.destroy()
 
@@ -827,24 +829,21 @@ def test_default_window_fits_side_panel_and_plot_controls():
         root.destroy()
 
 
-def test_the_tray_buttons_wrap_rather_than_widen_the_side_panel():
+def test_the_tray_fits_one_row_without_widening_the_side_panel():
     """The tray's five buttons in one row made the side panel wider than a
-    third of the default window: 570 px on macOS, whose buttons are wider,
-    and 511 px on Linux in the app's own theme (the test above measures the
-    bare Tk theme). They go on two rows when one would be too wide, and
-    again when a theme switch changes their size, each still shown."""
+    third of the default window (570 px on macOS). Add and Remove are
+    dropdowns now, so the tray is one row of three, and the side panel and
+    the plot's control bar still fit the default 1500 px window."""
     root, ed = _editor_or_skip()
     try:
         ed._theme_var.set('light')
         ed._set_theme()                       # the theme the app opens in
         ed.update_idletasks()
-        buttons = ed._sample_io_buttons
-        one_row = sum(b.winfo_reqwidth() for b in buttons) + 4 * 4
+        tray = (ed._add_mb, ed._remove_mb, ed._left_popbtn)
+        assert all(b.winfo_manager() == 'pack' for b in tray)
+        assert len({str(b.pack_info()['in']) for b in tray}) == 1
         side = ed._left_host.winfo_reqwidth()
-        assert side <= 500, (side, one_row)
-        if one_row > ed._SAMPLE_IO_ROW_MAX:
-            assert len({str(b.pack_info()['in']) for b in buttons}) == 2
-        assert all(b.winfo_manager() == 'pack' for b in buttons)
+        assert side <= 500, side
         bar = ed._ctrl_bar.winfo_reqwidth()
         assert side + bar + 12 <= 1500, (side, bar)
     finally:
