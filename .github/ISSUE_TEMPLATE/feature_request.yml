@@ -1,0 +1,44 @@
+name: Feature request
+description: Suggest a new feature or improvement.
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: |
+        Describe the workflow pain you're hitting. We're more interested
+        in the underlying problem than a specific implementation — the
+        former gives us room to find a better solution.
+      placeholder: |
+        e.g. "I run the pipeline on 60 samples at once, but the output
+        directory mixes per-sample stats and per-condition comparisons
+        in a flat layout that's hard to script against."
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would you like to see?
+      description: Your proposed solution, or rough sketch.
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives you've considered
+      description: |
+        Other tools that solve this (FlowJo / FCSExpress / cytutils /
+        Cytometer-Live), and what their solution looks like.
+
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Where would this live?
+      options:
+        - "Pipeline (openflo.pipeline)"
+        - "CLI (openflo.cli)"
+        - "GUI / gate editor (openflo.gui)"
+        - "Compare tool (openflo.compare)"
+        - "Docs / examples"
+        - "Not sure"
